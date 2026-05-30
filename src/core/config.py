@@ -44,9 +44,14 @@ class _Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/bot.db"
 
     # ── Scheduler ─────────────────────────────────────────────────────────────
-    check_interval_minutes: int = 720          # scrape mỗi 12 tiếng
+    check_interval_minutes: int = 720          # scrape mỗi 30 phút
     notification_times: str = "12:00,17:00"    # danh sách giờ gửi thông báo (HH:MM, cách nhau bằng dấu phẩy)
     timezone: str = "Asia/Ho_Chi_Minh"
+
+    # ── Deployment ────────────────────────────────────────────────────────────
+    # PORT được Render tự động set. Health check server lắng nghe trên cổng này.
+    # Ở máy local không cần set (bot dùng polling, không cần HTTP server).
+    port: int = 8080
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
@@ -22,6 +23,29 @@ from .summarizer import GeminiSummarizer
 from .bot import create_bot
 
 
+# ── Health check server (dùng khi deploy trên Render) ─────────────────────────
+
+async def _start_health_server(port: int):
+    """Start a simple HTTP server for health checks (UptimeRobot / Render)."""
+    try:
+        from aiohttp import web
+
+        async def _health(request):
+            return web.Response(text="OK", status=200)
+
+        http_app = web.Application()
+        http_app.router.add_get("/", _health)
+        http_app.router.add_get("/health", _health)
+
+        runner = web.AppRunner(http_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        return runner
+    except ImportError:
+        return None
+
+
 async def _main() -> None:
     from .core.config import get_settings
 
@@ -38,7 +62,8 @@ async def _main() -> None:
     # ── Database ───────────────────────────────────────────────────────────────
     init_db(settings.database_url)
     await create_tables()
-    logger.info(f"Database ready: {settings.db_path}")
+    db_info = settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url.split("///")[-1]
+    logger.info(f"Database ready: {db_info}")
 
     # ── Scraper + Summarizer ──────────────────────────────────────────────────
     fetcher = DAVFetcher(settings)
@@ -48,6 +73,13 @@ async def _main() -> None:
     app, updater = create_bot(settings.telegram_bot_token)
     await app.initialize()
     logger.info("Telegram bot initialized")
+
+    # ── Health check server (chỉ chạy khi có PORT env var — tức là trên Render) ──
+    health_runner = None
+    is_production = os.environ.get("RENDER") or os.environ.get("PORT")
+    if is_production:
+        health_runner = await _start_health_server(settings.port)
+        logger.info(f"Health check server started on port {settings.port} — /health")
 
     # ── Scheduler ─────────────────────────────────────────────────────────────
     scheduler = build_scheduler(settings, fetcher, summarizer)
@@ -98,6 +130,8 @@ async def _main() -> None:
         await app.stop()
         await app.shutdown()
         await close_db()
+        if health_runner:
+            await health_runner.cleanup()
         logger.info("Shutdown complete")
 
 
