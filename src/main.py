@@ -60,9 +60,9 @@ async def _main() -> None:
     )
 
     # ── Database ───────────────────────────────────────────────────────────────
-    init_db(settings.database_url)
+    init_db(settings.resolved_database_url)
     await create_tables()
-    db_info = settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url.split("///")[-1]
+    db_info = settings.resolved_database_url.split("@")[-1] if "@" in settings.resolved_database_url else settings.resolved_database_url.split("///")[-1]
     logger.info(f"Database ready: {db_info}")
 
     # ── Scraper + Summarizer ──────────────────────────────────────────────────

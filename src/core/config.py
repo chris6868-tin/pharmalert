@@ -43,6 +43,27 @@ class _Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./data/bot.db"
 
+    @property
+    def resolved_database_url(self) -> str:
+        """Return database URL with correct async driver prefix.
+        
+        Auto-corrects common mistakes:
+          postgres://...          → postgresql+asyncpg://...  (Supabase/Heroku style)
+          postgresql://...        → postgresql+asyncpg://...  (forgot +asyncpg)
+          sqlite:///...           → sqlite+aiosqlite:///...   (forgot +aiosqlite)
+        """
+        url = self.database_url
+        if url.startswith("postgres://"):
+            # Heroku/Supabase style — add correct driver
+            return "postgresql+asyncpg://" + url[len("postgres://"):]
+        if url.startswith("postgresql://"):
+            # Missing +asyncpg driver
+            return "postgresql+asyncpg://" + url[len("postgresql://"):]
+        if url.startswith("sqlite://") and "+aiosqlite" not in url:
+            # Missing +aiosqlite driver
+            return "sqlite+aiosqlite://" + url[len("sqlite://"):]
+        return url
+
     # ── Scheduler ─────────────────────────────────────────────────────────────
     check_interval_minutes: int = 720          # scrape mỗi 30 phút
     notification_times: str = "12:00,17:00"    # danh sách giờ gửi thông báo (HH:MM, cách nhau bằng dấu phẩy)
