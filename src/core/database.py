@@ -30,7 +30,7 @@ def init_db(database_url: str) -> None:
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
-            connect_args={"prepared_statement_cache_size": 0},
+            connect_args={"statement_cache_size": 0},
         )
 
     _engine = create_async_engine(
