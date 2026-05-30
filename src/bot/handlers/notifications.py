@@ -54,10 +54,25 @@ async def latest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         result = await session.execute(
             select(Announcement)
             .where(Announcement.summary.isnot(None))
-            .order_by(Announcement.processed_at.desc())
-            .limit(n)
+            # Fetch a larger pool to sort accurately by published date in Python
+            .limit(50)
         )
-        announcements = list(result.scalars().all())
+        all_ann = list(result.scalars().all())
+
+    # Sort in Python by parsed publication date (newest first)
+    from datetime import datetime
+    
+    def _parse_date(ann: Announcement) -> datetime:
+        if not ann.published_date:
+            return datetime.min
+        try:
+            return datetime.strptime(ann.published_date.strip(), "%d/%m/%Y")
+        except ValueError:
+            return datetime.min
+
+    # Sort reverse (newest date first, then higher id first)
+    all_ann.sort(key=lambda a: (_parse_date(a), a.id), reverse=True)
+    announcements = all_ann[:n]
 
     if not announcements:
         await update.message.reply_text(
