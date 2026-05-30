@@ -53,6 +53,10 @@ async def _scrape_dav(
     summarizer: GeminiSummarizer,
 ) -> list[Announcement]:
     """Scrape new DAV entries (violations + registration), download PDFs, summarize, save to DB."""
+    if not settings.enable_dav_scraping:
+        logger.info("DAV scraping disabled — skipping scrape")
+        return []
+
     from ..scraper import DAVScraperPipeline
 
     # Scrape both DAV sources — violations and drug registrations
@@ -371,17 +375,20 @@ def build_scheduler(
     scheduler = AsyncIOScheduler(timezone=str(tz))
 
     # Job 1: DAV scrape (every N minutes)
-    scheduler.add_job(
-        _scrape_dav,
-        trigger=IntervalTrigger(minutes=settings.check_interval_minutes),
-        args=[settings, fetcher, summarizer],
-        id="scrape_dav",
-        name="DAV scrape + Gemini summarize",
-        max_instances=1,
-        misfire_grace_time=300,
-        replace_existing=True,
-    )
-    logger.info(f"Scheduled DAV scrape every {settings.check_interval_minutes} min")
+    if settings.enable_dav_scraping:
+        scheduler.add_job(
+            _scrape_dav,
+            trigger=IntervalTrigger(minutes=settings.check_interval_minutes),
+            args=[settings, fetcher, summarizer],
+            id="scrape_dav",
+            name="DAV scrape + Gemini summarize",
+            max_instances=1,
+            misfire_grace_time=300,
+            replace_existing=True,
+        )
+        logger.info(f"Scheduled DAV scrape every {settings.check_interval_minutes} min")
+    else:
+        logger.info("DAV scraping disabled — not scheduling DAV scrape job")
 
     # Job 2: International news (FDA, EMA, PRAC) — only if enabled
     if settings.enable_international_sources:

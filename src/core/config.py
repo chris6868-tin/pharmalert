@@ -39,6 +39,7 @@ class _Settings(BaseSettings):
     # Khi False: chỉ scrape DAV (vi phạm + đăng ký thuốc)
     # Khi True: scrape thêm FDA, EMA, PRAC
     enable_international_sources: bool = False
+    enable_dav_scraping: bool = True
 
     # ── Database ──────────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./data/bot.db"
