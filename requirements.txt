@@ -1,0 +1,12 @@
+python-telegram-bot>=22.0
+httpx>=0.28
+beautifulsoup4>=4.12
+pymupdf>=1.25
+sqlalchemy>=2.0
+aiosqlite>=0.20
+pydantic>=2.10
+pydantic-settings>=2.7
+loguru>=0.7
+apscheduler>=3.11
+pytz>=2024.1
+asyncpg>=0.29

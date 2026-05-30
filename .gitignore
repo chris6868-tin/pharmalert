@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════
+#  .gitignore — DAV Pharma Telegram Bot
+# ═══════════════════════════════════════════════════════
+
+# ── Secrets & Environment ────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Database (dữ liệu local, không push lên Git) ─────────
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Python Virtual Environment ───────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Python Cache ─────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ── Build & Distribution ─────────────────────────────────
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# ── Testing ──────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── IDE & Editor ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS Files ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Temp files (debug scripts) ────────────────────────────
+tmp_*.py
+tmp_*.db
+temp_*.py
