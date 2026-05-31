@@ -262,12 +262,22 @@ async def _notify_subscribers(
                 )
                 sent_ids: set[int] = {r[0] for r in already_sent.fetchall()}
 
-                # Filter to only unsent announcements whose source is enabled for this subscriber
+                # Filter to only unsent announcements whose source is enabled and created within the last 24 hours
+                from datetime import datetime, timedelta
+                threshold = datetime.utcnow() - timedelta(hours=24)
+                
                 enabled = subscriber.get_enabled_sources()
-                new_for_subscriber = [
-                    ann for ann in all_announcements
-                    if ann.id not in sent_ids and ann.source in enabled
-                ]
+                new_for_subscriber = []
+                for ann in all_announcements:
+                    if ann.id in sent_ids or ann.source not in enabled:
+                        continue
+                    
+                    # Safely handle both timezone-naive and timezone-aware datetimes
+                    ann_created = ann.created_at.replace(tzinfo=None) if ann.created_at else None
+                    if ann_created and ann_created < threshold:
+                        continue
+                        
+                    new_for_subscriber.append(ann)
 
                 if not new_for_subscriber:
                     # No new announcements — stay silent
