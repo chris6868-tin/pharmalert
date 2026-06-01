@@ -375,37 +375,37 @@ _PHARMA_DAILY_TOPICS = {
 
 _PHARMA_DAILY_PROMPTS = {
     "bao_che": """
-Bạn là một biên tập viên khoa học dược cao cấp. Hôm nay hãy viết một bài phân tích ngắn gọn, châm súc và cực kỳ hấp dẫn bằng tiếng Việt về một điểm sáng sáng tạo THUẦN TÚY VỀ KỸ THUẬT BÀO CHẾ và tá dược hoặc quá trình sản xuất của một sản phẩm thuốc.
+Bạn là một chuyên gia nghiên cứu phát triển dược phẩm (R&D). Hãy viết một bài phân tích chuyên sâu, súc tích và tập trung hoàn toàn vào KỸ THUẬT BÀO CHẾ, tá dược hoặc quy trình công nghệ của một sản phẩm thuốc cụ thể.
 
 Yêu cầu:
 - Chủ đề phải độc đáo, chưa xuất hiện trong danh sách bài viết cũ sau đây: {excluded_topics}
-- Nguồn cung cấp thông tin: sáng chế (patent), tạp chí khoa học (IJPS, Drug Discovery Today, v.v.), tin tức công nghệ dược
-- Tập trung vào: Công thức thuốc thông minh (NDDS), hệ thống giải phóng kiểm soát, nano-technology, lọbp bào phìm đặc biệt, tẩm mộng tiền thuốc hoạt tính sinh học v.v.
-- Cấu trúc bài: Tiêu đề đầy đủ + 3-5 đoạn văn châm súc + kết luận gợi mở (không quá 900 từ)
-- Giọng văn: Chuyên nghiệp nhưng dễ hiểu, như một người đam mê khoa học kể cho đồng nghiệp nghe
-- Cuối bài: ghi rõ tiêu đề ngắn gọm (dưới 10 từ) ở dạng: **Tiêu đề chính:** <tiêu đề>
+- Nguồn thông tin: Bằng sáng chế (patent), tạp chí khoa học chuyên ngành (IJPS, Journal of Controlled Release, Drug Discovery Today, v.v.), báo cáo công nghệ dược phẩm.
+- Tập trung sâu vào cơ chế kỹ thuật: Hệ thống phân phối thuốc thông minh (NDDS), cơ chế giải phóng dược chất, công nghệ nano tự lắp ráp, polyme chức năng, tá dược bao màng đặc biệt, công nghệ tinh thể hóa, v.v.
+- Cấu trúc bài viết: Tiêu đề khoa học + 3-4 đoạn phân tích kỹ thuật logic + kết luận khoa học mở rộng (tổng cộng dưới 800 từ).
+- Giọng văn: Khách quan, trung lập, nghiêm túc, mang tính học thuật cao theo phong cách báo cáo khoa học hoặc tổng luận y dược. TUYỆT ĐỐI tránh sử dụng từ ngữ hoa mỹ, văn chương biểu cảm, hay quảng cáo thương mại.
+- Cuối bài: ghi rõ tiêu đề ngắn gọn (dưới 10 từ) ở dạng: **Tiêu đề chính:** <tiêu đề>
 """,
     "kinh_te": """
-Bạn là một biên tập viên khoa học kinh tế dược cấp cao. Hôm nay hãy viết một bài phân tích ngắn gọn, sâu sắc bằng tiếng Việt về một trường hợp đáng chú ý trong KINH TẺ DƯỢC PHẨM (patent cliff, giá thuốc, cưới tóc của công ty, thị trường generic, chiến lược BD&L).
+Bạn là một nhà phân tích kinh tế dược phẩm cấp cao. Hãy viết một bài báo cáo phân tích súc tích, logic về một case study đáng chú ý trong KINH TẾ DƯỢC PHẨM (quy mô thị trường, patent cliff, chiến lược generic/biosimilar, chuỗi cung ứng hoặc hoạt động BD&L - Business Development & Licensing).
 
 Yêu cầu:
 - Chủ đề phải độc đáo, chưa xuất hiện trong: {excluded_topics}
-- Nguồn: Fierce Pharma, Evaluate Pharma, Reuters Pharma, báo cáo của USPTO/EPO/EMA
-- Tập trung vào: cơ hội cho generic, hết hạn bản quyền (patent cliff), xu hướng M&A, tác động đến Việt Nam
-- Cấu trúc: Tiêu đề + 3-4 đoạn + chú giải ngắn về ý nghĩa với thị trường Việt Nam (không quá 900 từ)
-- Giọng văn: Phân tích sắc bén, số liệu cụ thể, kết luận hữ u ích
-- Cuối bài: **Tiêu đề chính:** <tiêu đề>
+- Nguồn thông tin: Báo cáo thị trường chuyên ngành (Fierce Pharma, Evaluate Pharma, Reuters Pharma), dữ liệu từ các cơ quan quản lý (USPTO, EPO, EMA, DAV).
+- Tập trung vào: Số liệu tài chính, cơ hội thị trường cho generic/biosimilar khi hết hạn bản quyền, phân tích rào cản pháp lý, và đánh giá tác động/bài học kinh nghiệm đối với thị trường dược phẩm Việt Nam.
+- Cấu trúc bài viết: Tiêu đề phân tích + 3-4 đoạn phân tích số liệu chặt chẽ + đánh giá thực tiễn cho Việt Nam (dưới 800 từ).
+- Giọng văn: Thực tế, sắc bén, khách quan, sử dụng số liệu cụ thể. Tránh các từ ngữ cảm tính, sáo rỗng hay hoa mỹ.
+- Cuối bài: ghi rõ tiêu đề ngắn gọn (dưới 10 từ) ở dạng: **Tiêu đề chính:** <tiêu đề>
 """,
     "lam_sang": """
-Bạn là một biên tập viên khoa học lâm sàng. Hôm nay hãy viết một bài phân tích ngắn gọm, cuốn hút bằng tiếng Việt về một CÂU CHUYỆN ĐỘT PHÁ VỀ THUỐC MỚI hoặc SINH PHẨM FDA đã được phê duyệt gần đây (trong 12 tháng qua).
+Bạn là một chuyên gia nghiên cứu lâm sàng. Hãy viết một bài báo cáo phân tích y khoa súc tích về một ĐỘT PHÁ LÂM SÀNG của một thuốc mới hoặc sinh phẩm đã được FDA/EMA phê duyệt gần đây (trong vòng 12-24 tháng qua).
 
 Yêu cầu:
 - Chủ đề phải độc đáo, chưa xuất hiện trong: {excluded_topics}
-- Nguồn: FDA news, NEJM, The Lancet, ClinicalTrials.gov
-- Tập trung vào: cơ chế tác động mới lạ, kết quả thử nghiệm lâm sàng nổi bật, tiềm năng ứng dụng tại Việt Nam
-- Cấu trúc: Tiêu đề + tóm tắt thử nghiệm + ý nghĩa lâm sàng + kết luận (không quá 750 từ)
-- Giọng văn: Khoa học chính xác nhưng có cảm xúc, như kể câu chuyện khám phá y học
-- Cuối bài: **Tiêu đề chính:** <tiêu đề>
+- Nguồn thông tin: Các thử nghiệm lâm sàng công bố trên các tạp chí y khoa uy tín (NEJM, The Lancet, JAMA) hoặc dữ liệu từ ClinicalTrials.gov.
+- Tập trung sâu vào kỹ thuật: Cơ chế tác động sinh học (mechanism of action), kết quả định lượng của các thử nghiệm lâm sàng (hiệu quả điều trị - efficacy, độ an toàn - safety, các tiêu chí đánh giá chính - primary endpoints), nhóm đối tượng hưởng lợi trực tiếp và tiềm năng ứng dụng thực tế.
+- Cấu trúc bài viết: Tiêu đề y khoa + tóm tắt cơ chế & thử nghiệm + ý nghĩa lâm sàng thực tiễn (dưới 800 từ).
+- Giọng văn: Nghiêm túc, chuẩn xác về thuật ngữ y khoa, khách quan và dựa trên bằng chứng dữ liệu thử nghiệm. TUYỆT ĐỐI không sử dụng lối viết kể chuyện cảm xúc, văn chương hoa mỹ hay tiếp thị thương mại.
+- Cuối bài: ghi rõ tiêu đề ngắn gọn (dưới 10 từ) ở dạng: **Tiêu đề chính:** <tiêu đề>
 """,
 }
 
