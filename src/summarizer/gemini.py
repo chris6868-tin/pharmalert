@@ -68,7 +68,7 @@ GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 SYSTEM_PROMPT = """Bạn là trợ lý chuyên tóm tắt thông báo xử lý vi phạm hành chính từ Cục Quản lý Dược (DAV) – Bộ Y tế Việt Nam.
 
-Nhiệm vng của bạn:
+Nhiệm vụ của bạn:
 1. Đọc nội dung thông báo xử phạt vi phạm hành chính (thường là quyết định xử phạt hoặc thông báo thu hồi).
 2. Trích xuất và trình bày các thông tin quan trọng theo format sau:
 
@@ -81,7 +81,6 @@ Nhiệm vng của bạn:
 📍 *Địa điểm xử phạt:* ...
 📌 *Căn cứ pháp lý:* ...
 ⏰ *Thời hạn thực hiện:* ...
-🔗 *Link gốc:* ...
 
 TÓM TẮT: 2-3 câu tổng kết ngắn gọn.
 
