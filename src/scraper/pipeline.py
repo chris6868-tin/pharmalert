@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,30 @@ from .fetcher import DAVFetcher
 from .parser import DAVListingParser
 
 logger = get_logger("scraper.pipeline")
+
+
+def _is_too_old(published_date_str: str | None, max_days: int = 60) -> bool:
+    """Check if the publication date is older than max_days.
+    
+    Standard DAV date format is DD/MM/YYYY (e.g., "22/08/2014" or "20/8/2014").
+    """
+    if not published_date_str:
+        return False
+    try:
+        # Giữ lại chỉ các chữ số và dấu gạch chéo
+        clean_str = re.sub(r'[^0-9/]', '', published_date_str).strip()
+        parts = clean_str.split('/')
+        if len(parts) == 3:
+            day = int(parts[0])
+            month = int(parts[1])
+            year = int(parts[2])
+            pub_date = datetime(year, month, day)
+            age = datetime.now() - pub_date
+            if age > timedelta(days=max_days):
+                return True
+    except Exception as e:
+        logger.debug(f"Failed to parse publication date '{published_date_str}': {e}")
+    return False
 
 
 @dataclass(slots=True)
@@ -59,6 +84,12 @@ class DAVScraperPipeline:
         logger.info("Starting DAV scrape pipeline")
 
         async for entry in self._parser.fetch_all_entries(self._listings_url, max_pages=5):
+            # Lọc bỏ các tin quá cũ (tránh lỗi web DAV tự xáo trộn đưa bài từ 2014 lên trang đầu)
+            if _is_too_old(entry.published_date, max_days=60):
+                logger.info(f"Skipping announcement older than 60 days ({entry.published_date}): {entry.title[:60]}")
+                skipped += 1
+                continue
+
             # Check if already in DB
             existing = await session.execute(
                 select(Announcement).where(Announcement.external_id == entry.dav_id)
