@@ -13,6 +13,7 @@ from telegram.ext import (
 
 from ..core.logging import get_logger
 from .handlers import help_command, latest, ping, start, status, subscribe, test_notify, unsubscribe, sources
+from .handlers.admin import admin_approval_callback
 from .handlers.subscription import sources_callback
 
 logger = get_logger("bot")
@@ -55,7 +56,10 @@ def create_bot(token: str) -> tuple[Application, Updater]:
     logger.info("Registered 9 command handlers")
 
     # Register callback handler for inline keyboard (source toggles)
-    app.add_handler(CallbackQueryHandler(sources_callback, pattern=r"sources_(toggle|save):?"))
+    app.add_handler(CallbackQueryHandler(sources_callback, pattern=r"^sources_(toggle|save):?"))
+
+    # Register callback handler for PharmaTech Daily admin approval
+    app.add_handler(CallbackQueryHandler(admin_approval_callback, pattern=r"^pharma_(approve|regenerate):\d+$"))
 
     # Global error handler
     async def error_handler(update: Update | object, context: ContextTypes.DEFAULT_TYPE) -> None:

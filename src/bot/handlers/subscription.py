@@ -22,6 +22,7 @@ AVAILABLE_SOURCES = [
     ("ema",              "🇪🇺", "EMA — Tin tức",                  "Tin tức EMA (thuốc mới, vaccine,...)"),
     ("ema_shortage",     "🚫",  "EMA — Thiếu thuốc",             "Thông báo thiếu thuốc tại EU"),
     ("prac",             "⚕️",  "EMA — PRAC Signals",             "Tín hiệu an toàn từ PRAC"),
+    ("pharma_daily",     "🔬",  "PharmaTech Daily — Bài phân tích", "Bài phân tích chuyên sâu về khoa học dược do AI biên soạn"),
 ]
 
 # Default enabled sources for new subscribers

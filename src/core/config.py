@@ -18,6 +18,14 @@ class _Settings(BaseSettings):
 
     # ── Telegram ──────────────────────────────────────────────────────────────
     telegram_bot_token: str = ""
+    # Chat ID của Admin Telegram — nhận bài viết nháp PharmaTech Daily để duyệt
+    admin_telegram_chat_id: int = 0
+
+    # ── PharmaTech Daily ──────────────────────────────────────────────────────
+    # Bật/tắt tính năng tạo bài viết khoa học dược tự động hàng ngày
+    enable_pharma_daily: bool = False
+    # Khung giờ gửi bài nháp cho Admin duyệt (HH:MM theo timezone local)
+    pharma_daily_time: str = "07:30"
 
     # ── Gemini AI ─────────────────────────────────────────────────────────────
     gemini_api_key: str = ""

@@ -9,54 +9,64 @@ from ...core.logging import get_logger
 logger = get_logger("bot.handlers.commands")
 
 WELCOME_MESSAGE = """
-👋 *Chào mừng đến với Bot Thông báo DAV!*
+👋 *Chào mừng đến với PharmaTech Bot!*
 
-Bot này tự động theo dõi trang web của Cục Quản lý Dược (DAV) — Bộ Y tế Việt Nam và gửi thông báo khi có thông báo xử lý vi phạm hành chính mới.
+Bot tự động theo dõi tin tức Cục Quản lý Dược (DAV), FDA, EMA và phân tích chuyên sâu về khoa học dược phẩm — mọi thứ dành riêng cho người làm nghề.
 
-*📋 Các lệnh có sẵn:*
+*📋 Các lệnh:*
 
 ▸ /start — Thông tin giới thiệu
 ▸ /help — Hướng dẫn sử dụng
-▸ /ping — Kiểm tra bot còn chạy
-▸ /testnotify — Chạy thử scraping và gửi thông báo test
-▸ /subscribe — Đăng ký nhận thông báo hàng ngày
+▸ /ping — Kiểm tra bot còn chạy không
+▸ /subscribe — Đăng ký nhận thông báo
 ▸ /unsubscribe — Hủy đăng ký
 ▸ /status — Kiểm tra trạng thái đăng ký
-▸ /latest [n] — Xem n thông báo mới nhất (mặc định: 5, tối đa: 20)
+▸ /sources — Chọn nguồn tin muốn nhận
+▸ /latest [n] — Xem n thông báo mới nhất (mặc định: 5)
 
-*🔒 Quyền riêng tư:*
-Bot chỉ lưu trữ chat_id của bạn để gửi thông báo. Không thu thập dữ liệu cá nhân khác.
+💡 Dùng /sources để bật nguồn *PharmaTech Daily* — bài phân tích khoa học dược do AI biên soạn mỗi ngày!
 
-Bắt đầu bằng cách dùng /subscribe để đăng ký nhận tin nhắn!
+*🔒 Quyền riêng tư:* Bot chỉ lưu chat\_id để gửi thông báo.
+
+Bắt đầu bằng cách gõ /subscribe nhé!
 """
 
 HELP_MESSAGE = """
-📖 *Hướng dẫn sử dụng Bot DAV*
+📖 *Hướng dẫn sử dụng PharmaTech Bot*
 
 *🤖 Giới thiệu*
-Bot tự động tải danh sách thông báo xử lý vi phạm hành chính từ trang DAV, đọc nội dung file PDF và tóm tắt tự động bằng AI (Gemini), sau đó gửi thông báo đến bạn.
+Bot tự động cào tin tức từ DAV, FDA, EMA và sử dụng AI (Gemini) để tóm tắt và tạo bài phân tích chuyên sâu về khoa học dược — cả kỹ thuật bào chế lẫn kinh tế dược phẩm.
 
 *⏰ Tần suất hoạt động*
-• Kiểm tra trang DAV mỗi 60 phút
-• Gửi tổng hợp thông báo mới nhất lúc 08:00 mỗi ngày
+• Kiểm tra nguồn tin mỗi vài giờ
+• Gửi thông báo theo lịch đã cấu hình
+• PharmaTech Daily: bài phân tích mới mỗi buổi sáng (sau khi Admin duyệt)
 
 *📋 Lệnh chi tiết*
 
 /ping — Kiểm tra bot còn chạy.
 
-/testnotify — Chạy test scraping và gửi thông báo đến các subscriber đang hoạt động.
+/subscribe — Đăng ký nhận thông báo. Sau khi đăng ký, bạn nhận tin khi có vi phạm mới từ DAV.
 
-/subscribe — Đăng ký nhận thông báo. Sau khi đăng ký, bạn sẽ nhận được tin nhắn mỗi khi có thông báo vi phạm mới.
+/unsubscribe — Hủy đăng ký. Sẽ không nhận thông báo nào nữa.
 
-/unsubscribe — Hủy đăng ký. Bạn sẽ không nhận được thông báo nào nữa.
+/status — Xem trạng thái đăng ký và các nguồn đang bật.
 
-/status — Xem trạng thái hiện tại của đăng ký.
+/sources — Bật/tắt từng nguồn tin: DAV, FDA, EMA, PRAC và PharmaTech Daily.
 
-/latest — Xem các thông báo mới nhất ngay lập tức. Ví dụ: /latest 10 để xem 10 thông báo gần nhất.
+/latest [n] — Xem n thông báo mới nhất ngay lập tức. Ví dụ: /latest 10
+
+*🔬 PharmaTech Daily*
+Mỗi ngày, AI sẽ nghiên cứu và biên soạn một bài phân tích chuyên sâu luân phiên:
+• Thứ 2, 4, 6: 💡 Sáng tạo Bào chế & Tá dược
+• Thứ 3, 5: 📈 Kinh tế Dược & Patent Cliff
+• Thứ 7, CN: 🔬 Lâm sàng & Sinh học
+
+Bật nguồn này qua /sources → PharmaTech Daily.
 
 *⚠️ Lưu ý*
-• Thông báo được tóm tắt tự động bằng AI, có thể không hoàn toàn chính xác 100%. Hãy kiểm tra file PDF gốc để xác nhận.
-• Nếu bot không phản hồi, hãy thử /subscribe lại.
+• Thông báo được tóm tắt/tạo bằng AI, hãy kiểm tra nguồn gốc để xác nhận.
+• Bài PharmaTech Daily được Admin duyệt trước khi gửi — đảm bảo chất lượng.
 """
 
 
@@ -83,9 +93,19 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def test_notify(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /testnotify — run a manual scrape and send notifications."""
+    """Handle /testnotify — admin-only: run a manual scrape and send notifications."""
+    from ...core.config import get_settings
     chat_id = update.effective_chat.id
-    logger.info(f"/testnotify from {chat_id}")
+    settings = get_settings()
+
+    # Restrict to admin only
+    if settings.admin_telegram_chat_id and chat_id != settings.admin_telegram_chat_id:
+        await update.message.reply_text(
+            "🔒 Lệnh này chỉ dành cho Admin."
+        )
+        return
+
+    logger.info(f"/testnotify from admin {chat_id}")
     await context.bot.send_message(chat_id=chat_id, text="🧪 Đang chạy test scraping và gửi thông báo. Vui lòng chờ...")
 
     async def _run_test_notify() -> None:

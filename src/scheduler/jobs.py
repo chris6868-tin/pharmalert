@@ -357,6 +357,200 @@ def _format_notification(ann: Announcement) -> str:
     return "\n".join(parts)
 
 
+# ── PharmaTech Daily topic schedule ──────────────────────────────────────
+
+# weekday() returns 0=Mon, 1=Tue, ... 6=Sun
+_PHARMA_DAILY_TOPICS = {
+    # Mon, Wed, Fri — Pharmaceutical formulation & excipient science
+    0: ("💡", "Sáng tạo Bào chế & Kỹ thuật tá dược", "bao_che"),
+    2: ("💡", "Sáng tạo Bào chế & Kỹ thuật tá dược", "bao_che"),
+    4: ("💡", "Sáng tạo Bào chế & Kỹ thuật tá dược", "bao_che"),
+    # Tue, Thu — Pharma economics & patent cliff
+    1: ("📈", "Xu hướng Kinh tế Dược & Patent Cliff", "kinh_te"),
+    3: ("📈", "Xu hướng Kinh tế Dược & Patent Cliff", "kinh_te"),
+    # Sat, Sun — Clinical breakthroughs & biologics
+    5: ("🔬", "Câu chuyện Lâm sàng & Đột phá Sinh học", "lam_sang"),
+    6: ("🔬", "Câu chuyện Lâm sàng & Đột phá Sinh học", "lam_sang"),
+}
+
+_PHARMA_DAILY_PROMPTS = {
+    "bao_che": """
+Bạn là một biên tập viên khoa học dược cao cấp. Hôm nay hãy viết một bài phân tích ngắn gọn, châm súc và cực kỳ hấp dẫn bằng tiếng Việt về một điểm sáng sáng tạo THUẦN TÚY VỀ KỸ THUẬT BÀO CHẾ và tá dược hoặc quá trình sản xuất của một sản phẩm thuốc.
+
+Yêu cầu:
+- Chủ đề phải độc đáo, chưa xuất hiện trong danh sách bài viết cũ sau đây: {excluded_topics}
+- Nguồn cung cấp thông tin: sáng chế (patent), tạp chí khoa học (IJPS, Drug Discovery Today, v.v.), tin tức công nghệ dược
+- Tập trung vào: Công thức thuốc thông minh (NDDS), hệ thống giải phóng kiểm soát, nano-technology, lọbp bào phìm đặc biệt, tẩm mộng tiền thuốc hoạt tính sinh học v.v.
+- Cấu trúc bài: Tiêu đề đầy đủ + 3-5 đoạn văn châm súc + kết luận gợi mở (không quá 900 từ)
+- Giọng văn: Chuyên nghiệp nhưng dễ hiểu, như một người đam mê khoa học kể cho đồng nghiệp nghe
+- Cuối bài: ghi rõ tiêu đề ngắn gọm (dưới 10 từ) ở dạng: **Tiêu đề chính:** <tiêu đề>
+""",
+    "kinh_te": """
+Bạn là một biên tập viên khoa học kinh tế dược cấp cao. Hôm nay hãy viết một bài phân tích ngắn gọn, sâu sắc bằng tiếng Việt về một trường hợp đáng chú ý trong KINH TẺ DƯỢC PHẨM (patent cliff, giá thuốc, cưới tóc của công ty, thị trường generic, chiến lược BD&L).
+
+Yêu cầu:
+- Chủ đề phải độc đáo, chưa xuất hiện trong: {excluded_topics}
+- Nguồn: Fierce Pharma, Evaluate Pharma, Reuters Pharma, báo cáo của USPTO/EPO/EMA
+- Tập trung vào: cơ hội cho generic, hết hạn bản quyền (patent cliff), xu hướng M&A, tác động đến Việt Nam
+- Cấu trúc: Tiêu đề + 3-4 đoạn + chú giải ngắn về ý nghĩa với thị trường Việt Nam (không quá 900 từ)
+- Giọng văn: Phân tích sắc bén, số liệu cụ thể, kết luận hữ u ích
+- Cuối bài: **Tiêu đề chính:** <tiêu đề>
+""",
+    "lam_sang": """
+Bạn là một biên tập viên khoa học lâm sàng. Hôm nay hãy viết một bài phân tích ngắn gọm, cuốn hút bằng tiếng Việt về một CÂU CHUYỆN ĐỘT PHÁ VỀ THUỐC MỚI hoặc SINH PHẨM FDA đã được phê duyệt gần đây (trong 12 tháng qua).
+
+Yêu cầu:
+- Chủ đề phải độc đáo, chưa xuất hiện trong: {excluded_topics}
+- Nguồn: FDA news, NEJM, The Lancet, ClinicalTrials.gov
+- Tập trung vào: cơ chế tác động mới lạ, kết quả thử nghiệm lâm sàng nổi bật, tiềm năng ứng dụng tại Việt Nam
+- Cấu trúc: Tiêu đề + tóm tắt thử nghiệm + ý nghĩa lâm sàng + kết luận (không quá 750 từ)
+- Giọng văn: Khoa học chính xác nhưng có cảm xúc, như kể câu chuyện khám phá y học
+- Cuối bài: **Tiêu đề chính:** <tiêu đề>
+""",
+}
+
+COFFEE_SIGNATURE = (
+    "\n\n---\n"
+    "_✍️ Biên tập (không chịu trách nhiệm về nội dung): T_ \n"
+)
+
+
+# ── Job 4: PharmaTech Daily — AI-generated pharma insight ──────────────────
+
+async def _generate_pharma_daily(
+    settings: _Settings,
+    summarizer: GeminiSummarizer,
+    force: bool = False,
+) -> None:
+    """
+    Generate a PharmaTech Daily article via Gemini and send to Admin for review.
+    Runs daily at pharma_daily_time. Alternates topics by weekday.
+    Stores topic history in DB to prevent duplicate subjects.
+    """
+    if not settings.enable_pharma_daily and not force:
+        logger.info("PharmaTech Daily disabled — skipping generation")
+        return
+    if not settings.admin_telegram_chat_id:
+        logger.warning("ADMIN_TELEGRAM_CHAT_ID not set — cannot send PharmaTech Daily draft")
+        return
+
+    tz = pytz.timezone(settings.timezone)
+    today = datetime.now(tz)
+    weekday = today.weekday()
+    topic_emoji, topic_label, topic_key = _PHARMA_DAILY_TOPICS[weekday]
+    date_display = today.strftime("%A, %d/%m/%Y")
+
+    # Fetch recent 30 published topics (summaries used as topic keys)
+    async with get_session() as session:
+        rows = await session.execute(
+            select(Announcement.title)
+            .where(Announcement.source == "pharma_daily")
+            .order_by(Announcement.created_at.desc())
+            .limit(30)
+        )
+        recent_titles = [r[0] for r in rows.fetchall()]
+
+    excluded_topics = "; ".join(recent_titles) if recent_titles else "(không có)"
+
+    prompt_template = _PHARMA_DAILY_PROMPTS[topic_key]
+    prompt = prompt_template.format(excluded_topics=excluded_topics)
+
+    logger.info(f"Generating PharmaTech Daily [{topic_label}] for {date_display}...")
+
+    try:
+        article_text = await summarizer.generate_text(prompt)
+    except Exception as e:
+        logger.error(f"Gemini generation failed for PharmaTech Daily: {e}")
+        http = httpx.AsyncClient(timeout=30.0)
+        try:
+            await http.post(
+                f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+                json={
+                    "chat_id": settings.admin_telegram_chat_id,
+                    "text": f"❌ PharmaTech Daily generation failed: {e}",
+                },
+            )
+        finally:
+            await http.aclose()
+        return
+
+    # Extract short title from article (model appends: **Tiêu đề chính:** ...)
+    short_title = _extract_title(article_text, topic_label, date_display)
+
+    # Build full message for preview
+    preview_header = (
+        f"{topic_emoji} *PharmaTech Daily — {topic_label}*\n"
+        f"📅 {date_display}\n\n"
+    )
+    broadcast_body = preview_header + article_text + COFFEE_SIGNATURE
+
+    # Save draft (processed_at=None means pending approval)
+    async with get_session() as session:
+        ann = Announcement(
+            source="pharma_daily",
+            external_id=f"pharma_daily_{today.strftime('%Y%m%d_%H%M%S')}",
+            title=short_title,
+            url="https://t.me",  # No external URL for AI-generated content
+            published_date=today.strftime("%d/%m/%Y"),
+            summary=broadcast_body,
+            processed_at=None,  # pending approval
+        )
+        session.add(ann)
+        await session.flush()  # get ann.id before commit
+        ann_id = ann.id
+
+    logger.info(f"PharmaTech Daily draft saved (id={ann_id}, title='{short_title}')")
+
+    # Send preview to Admin with approve/regenerate buttons
+    preview_text = (
+        f"📋 *[PHẢI DUYỆT] PharmaTech Daily*\n"
+        f"{topic_emoji} *Chủ đề:* {topic_label}\n"
+        f"📅 *Ngày:* {date_display}\n"
+        f"🔖 *Tiêu đề:* {short_title}\n\n"
+        f"───────────────────────────────────\n"
+        f"{article_text[:3000]}"
+        + ("\n..._(bài quá dài, đã cắt ngắn xem trước)_" if len(article_text) > 3000 else "")
+        + f"\n───────────────────────────────────"
+    )
+
+    inline_keyboard = [
+        [
+            {"text": "✅ Duyệt & Phát sóng", "callback_data": f"pharma_approve:{ann_id}"},
+            {"text": "♻️ Tạo bài khác", "callback_data": f"pharma_regenerate:{ann_id}"},
+        ]
+    ]
+
+    http = httpx.AsyncClient(timeout=30.0)
+    try:
+        resp = await http.post(
+            f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+            json={
+                "chat_id": settings.admin_telegram_chat_id,
+                "text": preview_text,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": True,
+                "reply_markup": {"inline_keyboard": inline_keyboard},
+            },
+        )
+        resp.raise_for_status()
+        logger.info(f"PharmaTech Daily draft sent to Admin (chat_id={settings.admin_telegram_chat_id})")
+    except Exception as e:
+        logger.error(f"Failed to send PharmaTech Daily draft to Admin: {e}")
+    finally:
+        await http.aclose()
+
+
+def _extract_title(article_text: str, fallback_label: str, date_display: str) -> str:
+    """Extract the short title the AI appended at the end of the article."""
+    for line in reversed(article_text.splitlines()):
+        line = line.strip()
+        if "Tiêu đề chính:" in line:
+            title = line.split("Tiêu đề chính:", 1)[-1].strip().strip("*_")
+            if title:
+                return title
+    return f"{fallback_label} — {date_display}"
+
+
 async def _send_telegram_message(
     http: httpx.AsyncClient,
     token: str,
@@ -429,5 +623,23 @@ def build_scheduler(
             replace_existing=True,
         )
         logger.info(f"Scheduled notification at {hour:02d}:{minute:02d}")
+
+    # Job 4: PharmaTech Daily — AI-generated pharma insight (daily at pharma_daily_time)
+    if settings.enable_pharma_daily:
+        pd_parts = settings.pharma_daily_time.split(":")
+        pd_hour, pd_minute = int(pd_parts[0]), int(pd_parts[1])
+        scheduler.add_job(
+            _generate_pharma_daily,
+            trigger=CronTrigger(hour=pd_hour, minute=pd_minute, timezone=str(tz)),
+            args=[settings, summarizer],
+            id="pharma_daily",
+            name=f"PharmaTech Daily generation at {pd_hour:02d}:{pd_minute:02d}",
+            max_instances=1,
+            misfire_grace_time=3600,
+            replace_existing=True,
+        )
+        logger.info(f"Scheduled PharmaTech Daily generation at {pd_hour:02d}:{pd_minute:02d}")
+    else:
+        logger.info("PharmaTech Daily disabled — not scheduling daily generation job")
 
     return scheduler

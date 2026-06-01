@@ -164,6 +164,55 @@ class GeminiSummarizer:
         truncated = truncate_for_gemini(text)
         return await self._call_gemini(truncated)
 
+    async def generate_text(self, prompt: str, max_tokens: int = 4096) -> str:
+        """
+        Generate free-form text using Gemini with a custom prompt.
+        Unlike summarize_*, this does NOT use the DAV system prompt.
+        Used for PharmaTech Daily article generation.
+        """
+        url = f"{GEMINI_API_BASE}/models/{self._model}:generateContent"
+        params = {"key": self._api_key}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topP": 0.9,
+                "topK": 40,
+                "maxOutputTokens": max_tokens,
+            },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            ],
+        }
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(90.0)) as client:
+                response = await client.post(url, json=payload, params=params)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            try:
+                err_body = e.response.json()
+                err_msg = err_body.get("error", {}).get("message", "")
+            except Exception:
+                err_msg = ""
+            if status == 429 or "quota" in err_msg.lower():
+                raise GeminiQuotaError(
+                    f"Gemini quota exceeded: {err_msg or status}", cause=e,
+                ) from e
+            raise GeminiError(f"Gemini API HTTP {status}: {err_msg or e}", cause=e) from e
+        except httpx.RequestError as e:
+            raise GeminiError(f"Gemini API request failed: {e}", cause=e) from e
+
+        try:
+            return _parse_gemini_response(data)
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error(f"Unexpected Gemini response structure: {str(data)[:500]}")
+            raise GeminiError(f"Cannot parse Gemini response: {e}", cause=e) from e
+
     async def _call_gemini(self, text: str) -> str:
         """Make a single request to the Gemini API with error handling."""
         url = f"{GEMINI_API_BASE}/models/{self._model}:generateContent"
