@@ -1,25 +1,31 @@
-# Telegram DAV Bot — Daily Violation Notification System
+# Telegram Pharmanews / Pharmalert Bot — Daily Violation Notification & AI Insight System
 
 ## Overview
 
-A production-ready Telegram bot that scrapes the DAV (Drug Administration of Vietnam) website daily for new violation announcements, summarizes PDF documents using Google's Gemini AI, and pushes notifications to subscribed users.
+A production-ready Telegram bot that scrapes the DAV (Drug Administration of Vietnam) website daily for new violation announcements, summarizes PDF documents using Google's Gemini AI, aggregates international pharmaceutical regulatory updates (FDA & EMA), and sends structured daily push notifications. 
 
-## Architecture
+Additionally, it features **PharmaTech Daily** — an automated, AI-generated daily pharmaceutical R&D and market insights system with an interactive **Admin approval workflow** to ensure premium, high-quality content delivery.
 
+---
+
+## Architecture & Workflows
+
+### 1. Daily Notification Pipeline (Scraper)
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                        Telegram Bot                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │  /start      │  │  /subscribe  │  │  /unsubscribe     │  │
-│  │  /help       │  │  /status     │  │  /latest          │  │
+│  │  /start      │  │  /sources    │  │  /status          │  │
+│  │  /help       │  │  /subscribe  │  │  /unsubscribe     │  │
 │  └──────────────┘  └──────────────┘  └───────────────────┘  │
 └──────────┬────────────────────────────────────┬─────────────┘
            │                                    │
 ┌──────────▼─────────────────────┐  ┌──────────▼──────────────┐
-│      Scheduler (APScheduler)   │  │   Database (SQLite)     │
+│      Scheduler (APScheduler)   │  │  Database (PostgreSQL)  │
 │  ┌──────────────────────────┐  │  │  ┌────────────────────┐  │
-│  │  Interval: 60 min check  │  │  │  │  Subscriptions     │  │
-│  │  Cron: 08:00 daily push │  │  │  │  Notifications     │  │
+│  │  Interval: 30 min check  │  │  │  │  Subscriptions     │  │
+│  │  Cron: Push slots        │  │  │  │  Announcements     │  │
+│  │  (e.g., 12:00, 18:00)    │  │  │  │  Notifications     │  │
 │  └──────────────────────────┘  │  │  └────────────────────┘  │
 └──────────┬─────────────────────┘  └──────────────────────────┘
            │
@@ -41,199 +47,207 @@ A production-ready Telegram bot that scrapes the DAV (Drug Administration of Vie
                                            │
                     ┌──────────────────────▼───────────────┐
                     │  Gemini Summarizer                   │
-                    │  - PDF text extracted                 │
-                    │  - Prompt: Vietnamese summary         │
+                    │  - PDF text extracted (PyMuPDF)       │
+                    │  - System Prompt: DAV layout format   │
                     │  - Markdown-formatted result          │
                     └───────────────────────────────────────┘
 ```
 
+### 2. PharmaTech Daily Workflow (Admin Approval)
+```
+  [⏰ Scheduled Time / 09:00]
+              │
+              ▼
+    _generate_pharma_daily()
+              │
+              ├──▶ Query DB: Fetch 30 recent topics (to avoid repetition)
+              │
+              ├──▶ Call Gemini: Write technical article (alternating topic)
+              │
+              ├──▶ Save to DB: As pending draft (processed_at = None)
+              │
+              ▼
+   [📨 Sent to Admin Chat] ──▶ Displays Preview + Action Buttons
+              │
+      ┌───────┴───────────────────────┐
+      ▼                               ▼
+ [✅ Duyệt & Phát sóng]       [♻️ Tạo bài khác]
+      │                               │
+      ├──▶ Update DB: Approved        ├──▶ Delete Draft from DB
+      ├──▶ Broadcast to subscribers   ├──▶ Trigger new Gemini call
+      └──▶ Delete Admin Buttons       └──▶ Replace old Telegram draft
+```
+
+---
+
 ## Features
 
-- **8 news sources covered**: DAV Vietnam, FDA (Recalls + Shortages + Approvals), EMA (News + Shortages), PRAC Safety Signals — all in one bot
-- **Smart PDF summarization**: Extracts text from PDFs using PyMuPDF, sends to Gemini 2.0 Flash for concise Vietnamese summaries
-- **Deduplication**: Tracks all processed items; skips re-scraping unchanged content
-- **User subscription**: SQLite-backed, per-chat subscriptions with group support
-- **Robust scraping**: Async HTTP with retry + timeout; graceful failures don't block notifications
-- **Background scheduler**: Non-blocking interval checks + notification push at configurable times (default: 12:00, 17:00)
-- **Production-ready**: Structured logging, graceful shutdown signals, containerized with Docker
-- **Configurable**: All settings via environment variables (no code changes needed)
+- **8 News Sources Covered**: DAV Vietnam (Violations & Registrations), FDA (Recalls, Shortages, Approvals), EMA (News, Shortages), and PRAC Safety Signals — all in one bot.
+- **Smart PDF Summarization**: Downloads PDF announcements, extracts text using PyMuPDF, and generates concise, structured Vietnamese summaries via Gemini AI.
+- **PharmaTech Daily**: Automated daily high-technical R&D and market insights alternating topics by weekday:
+  * **Mon, Wed, Fri**: 💡 *Sáng tạo Bào chế & Kỹ thuật tá dược* (Formulation & Excipients)
+  * **Tue, Thu**: 📈 *Xu hướng Kinh tế Dược & Patent Cliff* (Economics & Strategy)
+  * **Sat, Sun**: 🔬 *Câu chuyện Lâm sàng & Đột phá Sinh học* (Clinical Trials & Biologics)
+- **Interactive Admin Approval**: Preview drafts in Telegram with inline buttons to approve/broadcast or regenerate with a single tap.
+- **User Subscription Control**: Per-chat subscriptions using PostgreSQL/SQLite. Users can customize which of the 8 sources they want to receive notifications for via `/sources`.
+- **Coffee Signature**: Subtle, non-intrusive footer for community coffee donations.
+- **Robust Scraper**: Asynchronous fetching, timeout protection, backoff retries, and rate limits to guarantee absolute stability.
+- **Structured Loguru Logging**: High-fidelity logs, automatic database migrations, and graceful shutdown support.
+
+---
 
 ## News Sources Covered
 
-| Emoji | Source | Type | Refresh |
-|-------|--------|------|---------|
-| 🇻🇳 | DAV Vietnam | Xử phạt vi phạm hành chính | 12 tiếng |
-| 🇺🇸 | FDA Drug Recall | Class I Recalls (openFDA API) | 12 tiếng |
-| ⚠️ | FDA Drug Shortage | Current shortages (openFDA API) | 12 tiếng |
-| ✅ | FDA New Approval | Newly approved drugs (Drugs@FDA) | 12 tiếng |
-| 🇪🇺 | EMA News | Tin tức + thuốc mới (RSS) | 12 tiếng |
-| 🚫 | EMA Medicine Shortage | Thiếu thuốc tại EU (HTML) | 12 tiếng |
-| ⚕️ | EMA PRAC Signals | Safety signal recommendations (HTML) | 12 tiếng |
+| Emoji | Source | Type / Content | Interval |
+| :---: | :--- | :--- | :---: |
+| 🇻🇳 | **DAV Vietnam** | Xử phạt vi phạm hành chính | 30 Phút |
+| 🇻🇳 | **DAV Registration** | Đăng ký thuốc / Cấp phép lưu hành | 30 Phút |
+| 🇺🇸 | **FDA Drug Recall** | Class I Recalls (openFDA API) | 30 Phút |
+| ⚠️ | **FDA Drug Shortage** | Current shortages (openFDA API) | 30 Phút |
+| ✅ | **FDA New Approval** | Newly approved drugs (Drugs@FDA) | 30 Phút |
+| 🇪🇺 | **EMA News** | Tin tức tổng hợp (RSS) | 30 Phút |
+| 🚫 | **EMA Medicine Shortage** | Thiếu thuốc tại thị trường EU (HTML) | 30 Phút |
+| ⚕️ | **EMA PRAC Signals** | Safety recommendations (HTML) | 30 Phút |
+
+---
 
 ## Prerequisites
 
-- Python 3.12+
-- Telegram Bot Token (via [@BotFather](https://t.me/BotFather))
-- Gemini API Key (from [Google AI Studio](https://aistudio.google.com/app/apikey))
+- **Python 3.12+**
+- **Telegram Bot Token** (obtain from [@BotFather](https://t.me/BotFather))
+- **Gemini API Key** (obtain from [Google AI Studio](https://aistudio.google.com/app/apikey))
+- **Database**: PostgreSQL (Supabase/Neon) for production, SQLite (aiosqlite) for local development.
+
+---
 
 ## Quick Start
 
-### 1. Clone & configure
-
+### 1. Clone & Configure
 ```bash
-git clone <your-repo>
+git clone <your-repository-url>
 cd telegram-dav-bot
 cp .env.example .env
-# Edit .env with your TELEGRAM_BOT_TOKEN and GEMINI_API_KEY
+# Edit .env and supply your API keys and credentials
 ```
 
-### 2. Run with Python
-
+### 2. Local Setup & Execution
+We recommend using a virtual environment:
 ```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# or: .\.venv\Scripts\Activate.ps1  # Windows
+# On Windows:
+.\.venv\Scripts\Activate.ps1
+# On Linux/macOS:
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run
+# Run the application
 python -m src.main
 ```
 
-### 3. Run with Docker
+### 3. Deploy on Render
+This application is fully prepared for **Render** deployment.
+- **Environment**: Python
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `python -m src.main`
+- **Port**: Render injects the `PORT` env var automatically. The bot fires up a lightweight `aiohttp` web server to respond to Render's `/health` check.
 
-```bash
-docker compose up -d
-docker compose logs -f
-```
+---
+
+## Configuration Variables
+
+Copy `.env.example` to `.env` to configure the bot. Below are the key environment variables:
+
+| Variable | Type | Default | Description |
+| :--- | :---: | :--- | :--- |
+| `TELEGRAM_BOT_TOKEN` | String | *(Required)* | Telegram Bot token from @BotFather |
+| `GEMINI_API_KEY` | String | *(Required)* | Google Gemini AI API key |
+| `ADMIN_TELEGRAM_CHAT_ID` | Integer | `0` | Numeric Chat ID of the Bot Admin to receive daily drafts and control commands. |
+| `ENABLE_PHARMA_DAILY` | Boolean | `false` | Enable/disable the PharmaTech Daily AI generator. |
+| `PHARMA_DAILY_TIME` | String | `07:30` | Time slot for generating daily drafts (`HH:MM` local time). |
+| `DATABASE_URL` | String | `sqlite+aiosqlite:///./data/bot.db` | PostgreSQL or SQLite async connection string. |
+| `NOTIFICATION_TIMES` | String | `12:00,17:00` | Chron times for subscriber push notifications (comma separated `HH:MM`). |
+| `TIMEZONE` | String | `Asia/Ho_Chi_Minh` | Target timezone for daily tasks and scraper cron. |
+| `GEMINI_MODEL` | String | `gemini-flash-lite-latest` | Gemini model ID (e.g., `gemini-2.0-flash-lite`). |
+| `CHECK_INTERVAL_MINUTES` | Integer | `30` | Minutes between execution checks of web scrapers. |
+| `ENABLE_DAV_SCRAPING` | Boolean | `true` | Enable/disable DAV crawlers (useful if server IP is country-blocked). |
+| `ENABLE_INTERNATIONAL_SOURCES`| Boolean | `true` | Enable/disable FDA/EMA/PRAC ciders. |
+
+---
 
 ## Bot Commands
 
-| Command         | Description                                      |
-|-----------------|--------------------------------------------------|
-| `/start`        | Welcome message + subscription status             |
-| `/help`         | Show all commands and help information            |
-| `/ping`         | Check that the bot is running                     |
-| `/testnotify`   | Run a test scrape and send notifications          |
-| `/subscribe`    | Subscribe to daily violation notifications        |
-| `/unsubscribe`  | Unsubscribe from notifications                    |
-| `/status`       | Show current subscription status                  |
-| `/latest [n]`   | Get latest N summaries (default: 5, max: 20)     |
+| Command | Permission | Description |
+| :--- | :---: | :--- |
+| `/start` | Public | Welcome message, bot description, and registration status. |
+| `/help` | Public | Comprehensive list of available commands and usage guide. |
+| `/subscribe` | Public | Subscribe chat to receive automated daily summaries. |
+| `/unsubscribe`| Public | Unsubscribe chat from receiving push updates. |
+| `/status` | Public | Check current subscription state and enabled sources. |
+| `/sources` | Public | Open interactive settings menu to customize your news sources. |
+| `/latest [n]`| Public | Query the database and return the latest `n` summaries (default: 5). |
+| `/ping` | Public | Heartbeat check to verify the bot is online. |
+| `/testnotify` | **Admin Only**| Trigger a manual scraper loop and deliver fresh summaries to active users. |
 
-## Health Checks & Manual Verification
+---
 
-- `/ping` — verifies the bot is online and responsive.
-- `/testnotify` — performs a manual scrape, builds notifications, and sends a test notification to active subscribers.
+## Manual Broadcast Tool
 
-## Windows Background / Service Helper
+If you want to broadcast a custom text message (like feature announcements, updates, or maintenance notes) to all active subscribers, you can run the helper script:
 
-On Windows, you can run the bot in the background using Task Scheduler or a detached PowerShell session.
-
-Example using PowerShell:
-
-```powershell
-cd C:\Users\saleb\OneDrive\Desktop\DE\Pharmanews\telegram-dav-bot
-.\.venv\Scripts\Activate.ps1
-Start-Process -NoNewWindow -FilePath .\.venv\Scripts\python.exe -ArgumentList '-m src.main'
+```bash
+# Execute custom broadcast to all active subscribers in Supabase
+.venv\Scripts\python.exe broadcast_feature.py
 ```
 
-If you want a reusable helper, schedule `python -m src.main` as a Task Scheduler task configured to run whether the user is logged on or not.
+*Note: You can easily customize the message content inside `broadcast_feature.py` before running.*
 
-## Configuration
-
-All configuration is via environment variables. Copy `.env.example` to `.env`:
-
-| Variable                    | Default                  | Description                        |
-|-----------------------------|--------------------------|------------------------------------|
-| `TELEGRAM_BOT_TOKEN`        | *(required)*             | Telegram bot token                 |
-| `GEMINI_API_KEY`            | *(required)*             | Gemini API key                     |
-| `DAV_LISTINGS_URL`          | *(default provided)*     | DAV listing page URL               |
-| `DATABASE_URL`              | `sqlite+aiosqlite:///...`| Database connection string         |
-| `LOG_LEVEL`                 | `INFO`                   | Logging level (DEBUG/INFO/WARNING) |
-| `CHECK_INTERVAL_MINUTES`    | `720`                    | Interval between scraper runs (12h) |
-| `NOTIFICATION_TIMES`        | `12:00,17:00`           | Notification push times (HH:MM)     |
-| `TIMEZONE`                  | `Asia/Ho_Chi_Minh`       | Timezone for scheduling             |
-| `MAX_PDF_SIZE_MB`           | `10`                     | Max PDF size to process (MB)        |
-| `GEMINI_MODEL`              | `gemini-2.0-flash-lite`  | Gemini model ID                    |
-
-## How It Works
-
-1. **Startup**: Bot connects to Telegram and starts the scheduler
-2. **Interval check** (every 12h): Scrapes all 7 news sources in parallel
-3. **DAV entries**: Downloads PDF → extracts text → Gemini AI → saves to DB
-4. **International (FDA/EMA/PRAC)**: Fetches via openFDA API or HTML/RSS → saves to DB
-5. **Notification push** (12:00 & 17:00): Sends latest items per source to all subscribers
-6. **User commands**: Handle subscribe/unsubscribe/status via Telegram
-
-**No news?** Bot sends a heartbeat message so subscribers know it's still alive.
-
-## FAQ
-
-**Q: Does the bot need to download PDFs?**
-A: Yes, Gemini cannot directly fetch external URLs. The bot downloads PDFs to a temp directory, extracts text with PyMuPDF, sends to Gemini, then deletes the temp file immediately.
-
-**Q: What happens if a PDF can't be downloaded?**
-A: The notification is skipped gracefully. The error is logged, but the scraper continues with other entries.
-
-**Q: Can I run it without Docker?**
-A: Yes, see Quick Start → Run with Python above.
-
-**Q: Can the bot work in group chats?**
-A: Yes. Add the bot to a group and use `/subscribe` in the group to receive notifications there.
+---
 
 ## Project Structure
 
 ```
 telegram-dav-bot/
 ├── src/
-│   ├── main.py              # Application entry point
+│   ├── main.py              # Application entry point & service coordinator
 │   ├── bot/
-│   │   ├── bot.py           # Bot initialization
-│   │   ├── handlers/
-│   │   │   ├── __init__.py
-│   │   │   ├── subscription.py  # /subscribe, /unsubscribe, /status
-│   │   │   ├── commands.py     # /start, /help
-│   │   │   └── notifications.py # /latest
-│   │   └── router.py        # Command router
+│   │   ├── bot.py           # Telegram bot application setup
+│   │   ├── router.py        # Command and callback query routing
+│   │   └── handlers/
+│   │       ├── commands.py     # Command handlers (/start, /help, /ping)
+│   │       ├── subscription.py # Subscriptions, /sources, interactive configurations
+│   │       ├── notifications.py# Fetching and manual queries (/latest)
+│   │       └── admin.py        # Admin panel, approval, and regeneration callback logic
 │   ├── scraper/
-│   │   ├── __init__.py
-│   │   ├── fetcher.py       # Async HTTP fetcher (HTML + PDF)
-│   │   ├── parser.py        # HTML listing parser
-│   │   └── pipeline.py      # Full scraping pipeline
+│   │   ├── fetcher.py       # Asynchronous HTTP/PDF download client
+│   │   ├── parser.py        # HTML tree scraping and element extraction
+│   │   └── pipeline.py      # Unified workflow pipeline (crawling to SQLite/Postgres)
 │   ├── summarizer/
-│   │   ├── __init__.py
-│   │   └── gemini.py        # Gemini PDF summarizer
+│   │   └── gemini.py        # Gemini API client, text extraction & prompt engineering
 │   ├── scheduler/
-│   │   └── jobs.py          # APScheduler jobs (DAV + international)
+│   │   └── jobs.py          # Cron jobs (Scrapers, push notifications, daily insight generator)
 │   ├── news/
-│   │   ├── __init__.py
-│   │   ├── base.py          # NewsSourceBase + NewsItem + NewsSource enum
-│   │   ├── fda.py          # FDA Enforcement, Shortages, Approvals (openFDA API)
-│   │   └── ema.py          # EMA News (RSS), Shortages, PRAC Signals (HTML)
+│   │   ├── base.py          # NewsSource base types and structures
+│   │   ├── fda.py           # FDA API parsers (Recalls, shortage, approval trackers)
+│   │   └── ema.py           # EMA HTML & RSS parsers (News, shortages, safety signals)
 │   └── core/
-│       ├── __init__.py
-│       ├── config.py        # Settings management
-│       ├── logging.py       # Structured logging setup
-│       ├── models.py        # Pydantic models
-│       ├── exceptions.py    # Custom exceptions
-│       └── database.py      # SQLAlchemy async session factory
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py          # Pytest fixtures
-│   ├── test_config.py
-│   ├── test_parser.py
-│   ├── test_summarizer.py
-│   └── test_bot.py
-├── data/                    # SQLite DB + logs (gitignored)
-├── pyproject.toml
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── README.md
+│       ├── config.py        # Environment settings and validations (Pydantic Settings)
+│       ├── database.py      # Database setup and SQLAlchemy async sessions
+│       ├── models.py        # Declarative SQLAlchemy ORM schemas
+│       ├── logging.py       # Custom loguru structured configurations
+│       └── exceptions.py    # Standard custom application exceptions
+├── data/                    # Local database folder (SQLite data storage, gitignored)
+├── tests/                   # Pytest automation scripts
+├── broadcast_feature.py     # Administrative manual broadcast script
+├── pyproject.toml           # Python dependency specification metadata
+├── Dockerfile               # Production container config
+└── README.md                # System documentation
 ```
+
+---
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
