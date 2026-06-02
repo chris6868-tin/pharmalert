@@ -92,84 +92,129 @@ async def _scrape_dav(
                         if source_key == "dav_gmp":
                             # Process GMP announcement:
                             # 1. Fetch details page HTML
-                            # 2. Extract Excel file links (.xlsx or .xls)
-                            # 3. Download files and parse them using parse_gmp_sheet or parse_license_sheet
-                            # 4. Sync GMP data with DB
-                            # 5. Populate announcement.summary with a list of newly certified/updated GMP factories.
+                            # 2. Differentiate between domestic (Excel) and foreign (PDF via Gemini)
                             try:
                                 logger.info(f"Processing new GMP announcement: {announcement.url}")
                                 detail_html = await fetcher.fetch_html(announcement.url)
                                 soup = BeautifulSoup(detail_html, "html.parser")
                                 
-                                excel_urls = []
-                                for a in soup.find_all("a", href=True):
-                                    href = a["href"].strip()
-                                    text = a.get_text(strip=True)
-                                    if ".xlsx" in href.lower() or ".xls" in href.lower():
-                                        # Make absolute
-                                        abs_url = href
-                                        if not href.startswith("http"):
-                                            if href.startswith("/"):
-                                                abs_url = settings.dav_base_url.rstrip("/") + href
-                                            else:
-                                                abs_url = settings.dav_base_url.rstrip("/") + "/" + href
-                                        excel_urls.append((abs_url, text))
-                                
-                                logger.info(f"Found {len(excel_urls)} Excel links in GMP announcement detail page.")
-                                
+                                is_foreign = (url == settings.dav_gmp_foreign_url)
                                 all_newly_added = []
-                                for xlsx_url, link_text in excel_urls:
-                                    try:
-                                        logger.info(f"Downloading Excel file: {xlsx_url}")
-                                        xlsx_bytes = await fetcher.fetch_bytes(xlsx_url)
-                                        
-                                        # Determine category
-                                        is_license = any(x in xlsx_url.lower() or x in link_text.lower() for x in [
-                                            "dkkd", "giay-chung-nhan", "giay_chung_nhan", "chung_nhan", 
-                                            "dieu_kien_kinh_doanh", "kinh_doanh", "kinh doanh", "đủ điều kiện"
-                                        ])
-                                        
-                                        if is_license:
-                                            category = "gmp_license"
-                                            rows = parse_license_sheet(xlsx_bytes)
-                                        else:
-                                            category = "gmp_manufacturing"
-                                            rows = parse_gmp_sheet(xlsx_bytes)
-                                            
-                                        logger.info(f"Parsed {len(rows)} rows for category {category} from Excel link.")
-                                        newly_added = await sync_gmp_data(session, category, rows)
-                                        logger.info(f"Synced category {category}. Newly added: {len(newly_added)}")
-                                        all_newly_added.extend([(category, x) for x in newly_added])
-                                    except Exception as e:
-                                        logger.error(f"Error parsing GMP Excel file {xlsx_url}: {e}", exc_info=True)
                                 
-                                # Format announcement summary with beautiful list of newly certified factories
-                                if all_newly_added:
-                                    summary_lines = [
-                                        "🔔 *THÔNG BÁO: CÓ CƠ SỞ MỚI ĐẠT CHUẨN GMP!*",
-                                        f"Phát hiện thêm *{len(all_newly_added)}* cơ sở vừa được cập nhật/cấp chứng nhận đạt chuẩn GMP từ DAV:\n"
-                                    ]
-                                    for idx, (cat, data) in enumerate(all_newly_added, 1):
-                                        if cat == "gmp_manufacturing":
+                                if is_foreign:
+                                    pdf_urls = []
+                                    for a in soup.find_all("a", href=True):
+                                        href = a["href"].strip()
+                                        text = a.get_text(strip=True)
+                                        if ".pdf" in href.lower() and any(x in href.lower() or x in text.lower() for x in [
+                                            "danh sách đạt", "danh sach dat", "điều chỉnh", "dieu chinh", "gmp nn", "gmp_nn"
+                                        ]):
+                                            abs_url = href
+                                            if not href.startswith("http"):
+                                                if href.startswith("/"):
+                                                    abs_url = settings.dav_base_url.rstrip("/") + href
+                                                else:
+                                                    abs_url = settings.dav_base_url.rstrip("/") + "/" + href
+                                            pdf_urls.append((abs_url, text))
+                                            
+                                    logger.info(f"Found {len(pdf_urls)} PDF links in Foreign GMP detail page.")
+                                    
+                                    for pdf_url, link_text in pdf_urls:
+                                        try:
+                                            logger.info(f"Downloading Foreign GMP PDF: {pdf_url}")
+                                            pdf_bytes = await fetcher.fetch_bytes(pdf_url)
+                                            logger.info(f"Calling Gemini to parse Foreign GMP PDF table...")
+                                            rows = await summarizer.extract_gmp_foreign_from_pdf(pdf_bytes)
+                                            logger.info(f"Gemini parsed {len(rows)} foreign GMP facilities.")
+                                            newly_added = await sync_gmp_data(session, "gmp_foreign", rows)
+                                            logger.info(f"Synced foreign GMP. Newly added: {len(newly_added)}")
+                                            all_newly_added.extend([("gmp_foreign", x) for x in newly_added])
+                                        except Exception as e:
+                                            logger.error(f"Error parsing Foreign GMP PDF file {pdf_url}: {e}", exc_info=True)
+                                            
+                                    if all_newly_added:
+                                        summary_lines = [
+                                            "🔔 *THÔNG BÁO: CÓ CƠ SỞ NƯỚC NGOÀI MỚI ĐẠT CHUẨN GMP!*",
+                                            f"Phát hiện thêm *{len(all_newly_added)}* cơ sở sản xuất nước ngoài vừa được đánh giá đáp ứng tiêu chuẩn GMP:\n"
+                                        ]
+                                        for idx, (cat, data) in enumerate(all_newly_added, 1):
                                             summary_lines.append(
                                                 f"🏢 *{idx}. {data['factory_name']}*\n"
                                                 f"📍 *Địa chỉ:* {data['address']}\n"
-                                                f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'WHO-GMP'}\n"
+                                                f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'EU-GMP'}\n"
+                                                f"🏛️ *Cơ quan đánh giá:* {data.get('authority') or 'Cục Quản lý Dược'}\n"
                                                 f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
                                             )
-                                        else:  # gmp_license
-                                            summary_lines.append(
-                                                f"🏢 *{idx}. {data['factory_name']}* (ĐKKD Dược)\n"
-                                                f"📍 *Địa điểm sản xuất:* {data['address']}\n"
-                                                f"👤 *Dược sĩ chuyên môn:* {data.get('responsible_pharmacist') or 'N/A'}\n"
-                                                f"📄 *Số GCN:* {data.get('certificate_license') or 'N/A'}\n"
-                                                f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
-                                            )
-                                        summary_lines.append("──────────────────────")
-                                    announcement.summary = "\n".join(summary_lines)
+                                            summary_lines.append("──────────────────────")
+                                        announcement.summary = "\n".join(summary_lines)
+                                    else:
+                                        announcement.summary = None
                                 else:
-                                    announcement.summary = None  # No new updates
+                                    # Domestic GMP Excel logic
+                                    excel_urls = []
+                                    for a in soup.find_all("a", href=True):
+                                        href = a["href"].strip()
+                                        text = a.get_text(strip=True)
+                                        if ".xlsx" in href.lower() or ".xls" in href.lower():
+                                            abs_url = href
+                                            if not href.startswith("http"):
+                                                if href.startswith("/"):
+                                                    abs_url = settings.dav_base_url.rstrip("/") + href
+                                                else:
+                                                    abs_url = settings.dav_base_url.rstrip("/") + "/" + href
+                                            excel_urls.append((abs_url, text))
+                                            
+                                    logger.info(f"Found {len(excel_urls)} Excel links in GMP announcement detail page.")
                                     
+                                    for xlsx_url, link_text in excel_urls:
+                                        try:
+                                            logger.info(f"Downloading Excel file: {xlsx_url}")
+                                            xlsx_bytes = await fetcher.fetch_bytes(xlsx_url)
+                                            is_license = any(x in xlsx_url.lower() or x in link_text.lower() for x in [
+                                                "dkkd", "giay-chung-nhan", "giay_chung_nhan", "chung_nhan", 
+                                                "dieu_kien_kinh_doanh", "kinh_doanh", "kinh doanh", "đủ điều kiện"
+                                            ])
+                                            
+                                            if is_license:
+                                                category = "gmp_license"
+                                                rows = parse_license_sheet(xlsx_bytes)
+                                            else:
+                                                category = "gmp_manufacturing"
+                                                rows = parse_gmp_sheet(xlsx_bytes)
+                                                
+                                            logger.info(f"Parsed {len(rows)} rows for category {category} from Excel link.")
+                                            newly_added = await sync_gmp_data(session, category, rows)
+                                            logger.info(f"Synced category {category}. Newly added: {len(newly_added)}")
+                                            all_newly_added.extend([(category, x) for x in newly_added])
+                                        except Exception as e:
+                                            logger.error(f"Error parsing GMP Excel file {xlsx_url}: {e}", exc_info=True)
+                                            
+                                    if all_newly_added:
+                                        summary_lines = [
+                                            "🔔 *THÔNG BÁO: CÓ CƠ SỞ MỚI ĐẠT CHUẨN GMP!*",
+                                            f"Phát hiện thêm *{len(all_newly_added)}* cơ sở vừa được cập nhật/cấp chứng nhận đạt chuẩn GMP từ DAV:\n"
+                                        ]
+                                        for idx, (cat, data) in enumerate(all_newly_added, 1):
+                                            if cat == "gmp_manufacturing":
+                                                summary_lines.append(
+                                                    f"🏢 *{idx}. {data['factory_name']}*\n"
+                                                    f"📍 *Địa chỉ:* {data['address']}\n"
+                                                    f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'WHO-GMP'}\n"
+                                                    f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                                )
+                                            else:
+                                                summary_lines.append(
+                                                    f"🏢 *{idx}. {data['factory_name']}* (ĐKKD Dược)\n"
+                                                    f"📍 *Địa điểm sản xuất:* {data['address']}\n"
+                                                    f"👤 *Dược sĩ chuyên môn:* {data.get('responsible_pharmacist') or 'N/A'}\n"
+                                                    f"📄 *Số GCN:* {data.get('certificate_license') or 'N/A'}\n"
+                                                    f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                                )
+                                            summary_lines.append("──────────────────────")
+                                        announcement.summary = "\n".join(summary_lines)
+                                    else:
+                                        announcement.summary = None
+                                        
                                 announcement.processed_at = datetime.utcnow()
                                 all_processed.append(announcement)
                             except Exception as e:

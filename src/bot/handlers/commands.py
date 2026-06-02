@@ -194,6 +194,14 @@ async def gmp_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     f"🏛️ *Cơ quan cấp:* {f.authority or 'N/A'}\n"
                     f"📋 *Phạm vi:* {f.scope or 'N/A'}"
                 )
+            elif f.category == "gmp_foreign":
+                msg_parts.append(
+                    f"🏢 *{idx}. {f.factory_name}* (Nước ngoài)\n"
+                    f"📍 *Địa chỉ:* {f.address}\n"
+                    f"🔬 *Tiêu chuẩn:* {f.standard or 'EU-GMP'}\n"
+                    f"🏛️ *Cơ quan đánh giá:* {f.authority or 'Cục Quản lý Dược'}\n"
+                    f"📋 *Phạm vi:* {f.scope or 'N/A'}"
+                )
             else:  # gmp_license
                 msg_parts.append(
                     f"🏢 *{idx}. {f.factory_name}* (ĐKKD Dược)\n"
@@ -218,7 +226,7 @@ async def gmp_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         res = await session.execute(stmt)
         counts = {cat: count for cat, count in res.all()}
 
-        # Phân loại tiêu chuẩn sản xuất
+        # Phân loại tiêu chuẩn sản xuất trong nước
         std_stmt = (
             select(GmpFactory.standard, func.count(GmpFactory.id))
             .where(GmpFactory.category == "gmp_manufacturing")
@@ -229,14 +237,16 @@ async def gmp_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         total_mfg = counts.get("gmp_manufacturing", 0)
         total_lic = counts.get("gmp_license", 0)
-        total_all = total_mfg + total_lic
+        total_for = counts.get("gmp_foreign", 0)
+        total_all = total_mfg + total_lic + total_for
 
         msg = [
             "🎖️ *THỐNG KÊ CƠ SỞ ĐẠT CHUẨN GMP*",
             f"Tổng số cơ sở trong cơ sở dữ liệu: *{total_all}*\n",
-            f"🏭 *Cơ sở sản xuất đạt chuẩn (WHO/EU/PIC/S):* {total_mfg}",
+            f"🏭 *Cơ sở sản xuất trong nước (WHO/EU/PIC/S):* {total_mfg}",
+            f"🌎 *Cơ sở sản xuất nước ngoài đáp ứng GMP:* {total_for}",
             f"📄 *Cơ sở đủ điều kiện kinh doanh dược:* {total_lic}\n",
-            "🔬 *Phân loại tiêu chuẩn sản xuất:*"
+            "🔬 *Phân loại tiêu chuẩn sản xuất trong nước:*"
         ]
 
         for std, cnt in sorted(std_counts.items(), key=lambda x: x[1], reverse=True):

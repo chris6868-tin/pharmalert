@@ -251,3 +251,60 @@ class GeminiSummarizer:
         except (KeyError, IndexError, TypeError) as e:
             logger.error(f"Unexpected Gemini response structure: {str(data)[:500]}")
             raise GeminiError(f"Cannot parse Gemini response: {e}", cause=e) from e
+
+    async def extract_gmp_foreign_from_pdf(self, pdf_bytes: bytes) -> list[dict]:
+        """Extract foreign GMP certified factories from PDF bytes as a list of dicts using Gemini."""
+        self._validate_pdf_size(pdf_bytes)
+        raw_text = extract_text_from_pdf(pdf_bytes)
+        truncated = truncate_for_gemini(raw_text, max_chars=40_000)
+        
+        prompt = (
+            "Bạn là chuyên gia phân tích dữ liệu y tế. Dưới đây là văn bản danh sách các cơ sở sản xuất nước ngoài được đánh giá đáp ứng tiêu chuẩn GMP:\n\n"
+            f"{truncated}\n\n"
+            "Nhiệm vụ của bạn là: Trích xuất toàn bộ danh sách các cơ sở sản xuất dược phẩm đạt chuẩn GMP trong văn bản này.\n"
+            "Để tiết kiệm độ dài và tránh bị cắt ngắn văn bản, bạn phải trả về dữ liệu dưới dạng văn bản thuần, mỗi cơ sở nằm trên một dòng duy nhất (ngăn cách các cột bằng dấu gạch đứng '|'):\n"
+            "Tên cơ sở | Địa chỉ thực tế nhà máy | Tiêu chuẩn GMP | Cơ quan đánh giá/cấp | Phạm vi hoạt động chính\n\n"
+            "Ví dụ dòng kết quả:\n"
+            "Pfizer Ireland Pharmaceuticals | Grange Castle Business Park, Clondalkin, Dublin 22, Ireland | EU-GMP | Cục Quản lý Dược Việt Nam | Thuốc vô trùng, Thuốc không vô trùng\n\n"
+            "Quy tắc quan trọng:\n"
+            "- Trả về CHỈ danh sách các dòng kết quả, không viết bất kỳ lời giới thiệu hay giải thích nào khác.\n"
+            "- Không sử dụng bất kỳ định dạng markdown nào (như bảng biểu markdown, thẻ ```, v.v.).\n"
+            "- Mỗi cơ sở phải nằm hoàn toàn trên MỘT dòng duy nhất (không ngắt dòng giữa chừng).\n"
+            "- Chỉ trích xuất các cơ sở thực tế có trong văn bản.\n"
+        )
+        
+        response_text = await self.generate_text(prompt, max_tokens=4096)
+        
+        normalized = []
+        for line in response_text.splitlines():
+            line = line.strip()
+            if not line or "|" not in line:
+                continue
+            parts = [x.strip() for x in line.split("|")]
+            if len(parts) < 2:
+                continue
+                
+            factory_name = parts[0]
+            address = parts[1]
+            # Bỏ qua dòng tiêu đề nếu AI trích xuất nhầm
+            if not factory_name or not address or any(x in factory_name.lower() for x in ["tên cơ sở", "factory name", "---"]):
+                continue
+                
+            standard = parts[2] if len(parts) > 2 and parts[2] else "EU-GMP"
+            authority = parts[3] if len(parts) > 3 and parts[3] else "Cục Quản lý Dược"
+            scope = parts[4] if len(parts) > 4 and parts[4] else "N/A"
+            
+            normalized.append({
+                "factory_name": factory_name,
+                "address": address,
+                "scope": scope if scope else None,
+                "standard": standard if standard else "GMP",
+                "authority": authority if authority else "Cục Quản lý Dược",
+                "headquarters_address": None,
+                "location_name": None,
+                "responsible_pharmacist": None,
+                "certificate_license": None
+            })
+            
+        logger.info(f"Successfully extracted {len(normalized)} foreign GMP factories via Gemini pipe-delimited parser.")
+        return normalized
