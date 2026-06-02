@@ -1,6 +1,7 @@
 """Telegram command handlers for general commands: /start and /help."""
 from __future__ import annotations
 
+import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -222,12 +223,56 @@ async def gmp_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 )
             msg_parts.append("──────────────────────")
 
+        await send_message_chunked(update, "\n".join(msg_parts), parse_mode="Markdown")
+
+
+async def send_message_chunked(update: Update, text: str, parse_mode: str | None = None) -> None:
+    """Send a long telegram message in chunks of at most 4000 characters to prevent length errors."""
+    max_chars = 4000
+    if len(text) <= max_chars:
         try:
-            await update.message.reply_text("\n".join(msg_parts), parse_mode="Markdown")
+            await update.message.reply_text(text, parse_mode=parse_mode)
         except Exception as e:
-            logger.warning(f"gmp_search Markdown reply failed, retrying plain text: {e}")
-            plain_text = "\n".join(msg_parts).replace("*", "").replace("_", "").replace("`", "")
-            await update.message.reply_text(plain_text)
+            if parse_mode:
+                logger.warning(f"send_message_chunked Markdown failed, retrying plain text: {e}")
+                clean_text = text.replace("*", "").replace("_", "").replace("`", "")
+                await update.message.reply_text(clean_text)
+            else:
+                raise
+        return
+
+    chunks = []
+    lines = text.splitlines(keepends=True)
+    current_chunk = []
+    current_len = 0
+    for line in lines:
+        if current_len + len(line) > max_chars:
+            if current_chunk:
+                chunks.append("".join(current_chunk))
+                current_chunk = [line]
+                current_len = len(line)
+            else:
+                # Fallback for single extremely long line
+                for i in range(0, len(line), max_chars):
+                    chunks.append(line[i:i+max_chars])
+        else:
+            current_chunk.append(line)
+            current_len += len(line)
+    if current_chunk:
+        chunks.append("".join(current_chunk))
+
+    for idx, chunk in enumerate(chunks, 1):
+        try:
+            await update.message.reply_text(chunk, parse_mode=parse_mode)
+        except Exception as e:
+            if parse_mode:
+                logger.warning(f"send_message_chunked chunk {idx} Markdown failed, retrying plain text: {e}")
+                clean_chunk = chunk.replace("*", "").replace("_", "").replace("`", "")
+                await update.message.reply_text(clean_chunk)
+            else:
+                raise
+        await asyncio.sleep(0.3)
+
 
 
 
