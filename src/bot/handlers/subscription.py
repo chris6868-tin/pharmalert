@@ -16,6 +16,7 @@ logger = get_logger("bot.handlers.subscription")
 AVAILABLE_SOURCES = [
     ("dav_violation",    "🇻🇳", "DAV Việt Nam — Vi phạm",       "Thông báo xử lý vi phạm hành chính"),
     ("dav_registration", "🇻🇳", "DAV Việt Nam — Đăng ký thuốc",  "Danh sách thuốc được cấp phép lưu hành"),
+    ("dav_gmp",          "🎖️", "DAV Việt Nam — Đạt chuẩn GMP",   "Công bố cơ sở đạt WHO-GMP hoặc cơ sở nước ngoài đáp ứng GMP"),
     ("fda_enforcement",  "🇺🇸", "FDA — Drug Recall",              "Thuốc bị thu hồi (Class I)"),
     ("fda_shortage",     "⚠️",  "FDA — Drug Shortage",            "Thuốc khan hiếm"),
     ("fda_approval",     "✅",  "FDA — New Approval",              "Thuốc mới được phê duyệt"),

@@ -39,6 +39,12 @@ class _Settings(BaseSettings):
     dav_registration_url: str = (
         "https://dav.gov.vn/dang-ki-thuoc-cn6.html"
     )
+    dav_gmp_domestic_url: str = (
+        "https://dav.gov.vn/danh-sach-cssx-duoc-cap-gmp-cua-dav-cn92.html"
+    )
+    dav_gmp_foreign_url: str = (
+        "https://dav.gov.vn/danh-sach-cssx-duoc-chung-nhan-gmp-nuoc-ngoai-cn94.html"
+    )
     max_pdf_size_mb: int = 10
     http_timeout_seconds: int = 60   # Tăng lên 60s cho trường hợp access từ server nước ngoài
     http_max_retries: int = 3

@@ -57,7 +57,7 @@ class DAVListingParser:
 
     def _normalize_id(self, url: str, title: str) -> str:
         """Generate a stable unique ID from URL and title."""
-        url_part = re.sub(r"[^a-zA-Z0-9]", "", url.split("/")[-1][:40])
+        url_part = re.sub(r"[^a-zA-Z0-9]", "", url.split("/")[-1])
         title_part = re.sub(r"[^a-zA-Z0-9]", "", title)[:30]
         return f"{url_part}_{title_part}".lower()
 

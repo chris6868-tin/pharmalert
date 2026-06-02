@@ -34,6 +34,7 @@ _SOURCE_META = {
     # DAV Vietnam
     "dav_violation":    ("🇻🇳", "DAV Việt Nam — Vi phạm"),
     "dav_registration": ("🇻🇳", "DAV Việt Nam — Đăng ký thuốc"),
+    "dav_gmp":          ("🎖️", "DAV Việt Nam — Đạt chuẩn GMP"),
     # FDA USA
     "fda_enforcement":   ("🇺🇸", "FDA Drug Recall"),
     "fda_shortage":     ("⚠️",  "FDA Drug Shortage"),
@@ -59,10 +60,12 @@ async def _scrape_dav(
 
     from ..scraper import DAVScraperPipeline
 
-    # Scrape both DAV sources — violations and drug registrations
+    # Scrape four DAV sources — violations, drug registrations, and GMP (domestic & foreign)
     dav_sources = [
         ("dav_violation",    settings.dav_listings_url),
         ("dav_registration", settings.dav_registration_url),
+        ("dav_gmp",          settings.dav_gmp_domestic_url),
+        ("dav_gmp",          settings.dav_gmp_foreign_url),
     ]
 
     all_processed: list[Announcement] = []
@@ -77,8 +80,8 @@ async def _scrape_dav(
                 else:
                     logger.info(f"DAV [{source_key}]: {result.new_entries} new, {result.skipped_entries} skipped, {result.failed_entries} failed")
                     for announcement in result.announcements:
-                        if source_key == "dav_registration":
-                            # For drug registrations, we don't need summaries — only title and link.
+                        if source_key in ("dav_registration", "dav_gmp"):
+                            # For drug registrations and GMP certifications, we don't need summaries — only title and link.
                             announcement.processed_at = datetime.utcnow()
                             all_processed.append(announcement)
                             continue
@@ -291,7 +294,7 @@ async def _notify_subscribers(
                 for ann in new_for_subscriber:
                     by_source.setdefault(ann.source, []).append(ann)
 
-                for src in ["dav_violation", "dav_registration",
+                for src in ["dav_violation", "dav_registration", "dav_gmp",
                              "fda_enforcement", "fda_shortage", "fda_approval",
                              "ema", "ema_shortage", "prac"]:
                     for ann in by_source.get(src, []):
