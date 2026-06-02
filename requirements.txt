@@ -11,3 +11,4 @@ apscheduler>=3.11
 pytz>=2024.1
 asyncpg>=0.29
 aiohttp>=3.9
+openpyxl>=3.1.2
