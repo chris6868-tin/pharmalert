@@ -179,8 +179,4 @@ async def _handle_regenerate(query, context, ann_id: int) -> None:
 
 def _format_pharma_daily_message(ann: Announcement) -> str:
     """Format PharmaTech Daily announcement for broadcast."""
-    COFFEE_SIGNATURE = (
-        "\n\n---\n"
-        "_✍️ Biên tập (nhưng không chịu trách nhiệm về nội dung): T_\n"
-    )
-    return (ann.summary or ann.title) + COFFEE_SIGNATURE
+    return ann.summary or ann.title
