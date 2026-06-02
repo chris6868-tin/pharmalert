@@ -159,11 +159,8 @@ async def _scrape_dav(
                                         ]
                                         for idx, (cat, data) in enumerate(all_newly_added, 1):
                                             summary_lines.append(
-                                                f"🏢 *{idx}. {escape_md(data['factory_name'])}*\n"
-                                                f"📍 *Địa chỉ:* {escape_md(data['address'])}\n"
-                                                f"🔬 *Tiêu chuẩn:* {escape_md(data.get('standard') or 'EU-GMP')}\n"
-                                                f"🏛️ *Cơ quan đánh giá:* {escape_md(data.get('authority') or 'Cục Quản lý Dược')}\n"
-                                                f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
+                                                f"🏢 *{idx}. {escape_md(data['factory_name'])}* ({escape_md(data.get('standard') or 'EU-GMP')})\n"
+                                                f"📍 *Địa chỉ:* {escape_md(data['address'])}"
                                             )
                                             summary_lines.append("──────────────────────")
                                         announcement.summary = "\n".join(summary_lines)
@@ -217,18 +214,13 @@ async def _scrape_dav(
                                         for idx, (cat, data) in enumerate(all_newly_added, 1):
                                             if cat == "gmp_manufacturing":
                                                 summary_lines.append(
-                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}*\n"
-                                                    f"📍 *Địa chỉ:* {escape_md(data['address'])}\n"
-                                                    f"🔬 *Tiêu chuẩn:* {escape_md(data.get('standard') or 'WHO-GMP')}\n"
-                                                    f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
+                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}* ({escape_md(data.get('standard') or 'WHO-GMP')})\n"
+                                                    f"📍 *Địa chỉ:* {escape_md(data['address'])}"
                                                 )
                                             else:
                                                 summary_lines.append(
                                                     f"🏢 *{idx}. {escape_md(data['factory_name'])}* (ĐKKD Dược)\n"
-                                                    f"📍 *Địa điểm sản xuất:* {escape_md(data['address'])}\n"
-                                                    f"👤 *Dược sĩ chuyên môn:* {escape_md(data.get('responsible_pharmacist') or 'N/A')}\n"
-                                                    f"📄 *Số GCN:* {escape_md(data.get('certificate_license') or 'N/A')}\n"
-                                                    f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
+                                                    f"📍 *Địa điểm:* {escape_md(data['address'])}"
                                                 )
                                             summary_lines.append("──────────────────────")
                                         announcement.summary = "\n".join(summary_lines)

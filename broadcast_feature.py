@@ -26,17 +26,23 @@ async def main():
         # =========================================================================
         # BẠN CÓ THỂ SỬA NỘI DUNG TIN NHẮN THÔNG BÁO Ở DƯỚI ĐÂY
         # =========================================================================
-        message_text = """
-Bot ra mắt một tính năng mới: *PharmaTech Daily*.
-Với chương trình như sau:
-💡 *Thứ 2, 4, 6*: Sáng tạo Bào chế & Kỹ thuật Tá dược
-📈 *Thứ 3, 5*: Xu hướng Kinh tế Dược & Patent Cliff
-🔬 *Thứ 7, CN*: Câu chuyện Lâm sàng & Đột phá Sinh học
+        message_text = """📢 *THÔNG BÁO: CẬP NHẬT TRA CỨU & THÔNG BÁO VỀ GMP*
 
-👉 Gõ lệnh /sources và bấm vào nút để bật nguồn *PharmaTech Daily* khi cần ạ. 
+Bot vừa được tích hợp thêm các tính năng theo dõi và tra cứu tiêu chuẩn GMP (WHO, EU, PIC/S...) từ Cục Quản lý Dược (DAV):
 
-Chúc mọi người ngày mới tốt lành! hehe
-"""
+🔎 *1. Tra cứu cơ sở đạt chuẩn GMP (/gmp)*
+▸ *Cú pháp:* `/gmp <tên hoặc địa chỉ cơ sở>` _(Ví dụ: /gmp Stellapharm)_
+▸ *Kết quả:* Hiển thị tức thì thông tin cơ sở đạt chuẩn GMP trong nước, ĐKKD Dược và các cơ sở nước ngoài đạt chuẩn, kèm theo *chi tiết phạm vi hoạt động/sản xuất*.
+
+📊 *2. Xem thống kê dữ liệu GMP (/gmpstats)*
+▸ *Cú pháp:* `/gmpstats`
+▸ *Kết quả:* Hiển thị tổng hợp số lượng cơ sở sản xuất trong nước, nước ngoài và ĐKKD Dược hiện có trong CSDL của hệ thống.
+
+🔔 *3. Tự động nhận thông báo GMP mới*
+▸ Mỗi khi có đợt công bố GMP mới từ DAV, hệ thống sẽ tự động quét, so sánh và gửi ngay danh sách các cơ sở mới đạt chuẩn tới bạn.
+▸ Bật/tắt nguồn nhận tin này tại /sources -> chọn *🎖️ DAV Việt Nam — Đạt chuẩn GMP*.
+
+Cảm ơn bạn đã theo dõi - T."""
         # =========================================================================
 
         print("Đang quét danh sách người dùng...")
