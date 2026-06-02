@@ -49,6 +49,16 @@ _SOURCE_META = {
     "prac":            ("⚕️",  "EMA PRAC Signals"),
 }
 
+def escape_md(text: str | None) -> str:
+    """Escape Telegram Markdown V1 special characters in raw strings."""
+    if not text:
+        return "N/A"
+    res = str(text)
+    for c in ["\\", "*", "_", "`", "["]:
+        res = res.replace(c, f"\\{c}")
+    return res
+
+
 # ── Job 1: DAV scrape + Gemini summarize ─────────────────────────────────────
 
 async def _scrape_dav(
@@ -98,7 +108,7 @@ async def _scrape_dav(
                                 detail_html = await fetcher.fetch_html(announcement.url)
                                 soup = BeautifulSoup(detail_html, "html.parser")
                                 
-                                is_foreign = (url == settings.dav_gmp_foreign_url)
+                                is_foreign = (url == settings.dav_gmp_foreign_url) or any(x in announcement.title.lower() for x in ["nước ngoài", "nuoc ngoai", "gmp nn", "gmp_nn"])
                                 all_newly_added = []
                                 
                                 if is_foreign:
@@ -139,11 +149,11 @@ async def _scrape_dav(
                                         ]
                                         for idx, (cat, data) in enumerate(all_newly_added, 1):
                                             summary_lines.append(
-                                                f"🏢 *{idx}. {data['factory_name']}*\n"
-                                                f"📍 *Địa chỉ:* {data['address']}\n"
-                                                f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'EU-GMP'}\n"
-                                                f"🏛️ *Cơ quan đánh giá:* {data.get('authority') or 'Cục Quản lý Dược'}\n"
-                                                f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                                f"🏢 *{idx}. {escape_md(data['factory_name'])}*\n"
+                                                f"📍 *Địa chỉ:* {escape_md(data['address'])}\n"
+                                                f"🔬 *Tiêu chuẩn:* {escape_md(data.get('standard') or 'EU-GMP')}\n"
+                                                f"🏛️ *Cơ quan đánh giá:* {escape_md(data.get('authority') or 'Cục Quản lý Dược')}\n"
+                                                f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
                                             )
                                             summary_lines.append("──────────────────────")
                                         announcement.summary = "\n".join(summary_lines)
@@ -197,18 +207,18 @@ async def _scrape_dav(
                                         for idx, (cat, data) in enumerate(all_newly_added, 1):
                                             if cat == "gmp_manufacturing":
                                                 summary_lines.append(
-                                                    f"🏢 *{idx}. {data['factory_name']}*\n"
-                                                    f"📍 *Địa chỉ:* {data['address']}\n"
-                                                    f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'WHO-GMP'}\n"
-                                                    f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}*\n"
+                                                    f"📍 *Địa chỉ:* {escape_md(data['address'])}\n"
+                                                    f"🔬 *Tiêu chuẩn:* {escape_md(data.get('standard') or 'WHO-GMP')}\n"
+                                                    f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
                                                 )
                                             else:
                                                 summary_lines.append(
-                                                    f"🏢 *{idx}. {data['factory_name']}* (ĐKKD Dược)\n"
-                                                    f"📍 *Địa điểm sản xuất:* {data['address']}\n"
-                                                    f"👤 *Dược sĩ chuyên môn:* {data.get('responsible_pharmacist') or 'N/A'}\n"
-                                                    f"📄 *Số GCN:* {data.get('certificate_license') or 'N/A'}\n"
-                                                    f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}* (ĐKKD Dược)\n"
+                                                    f"📍 *Địa điểm sản xuất:* {escape_md(data['address'])}\n"
+                                                    f"👤 *Dược sĩ chuyên môn:* {escape_md(data.get('responsible_pharmacist') or 'N/A')}\n"
+                                                    f"📄 *Số GCN:* {escape_md(data.get('certificate_license') or 'N/A')}\n"
+                                                    f"📋 *Phạm vi:* {escape_md(data.get('scope') or 'N/A')}"
                                                 )
                                             summary_lines.append("──────────────────────")
                                         announcement.summary = "\n".join(summary_lines)
@@ -713,14 +723,63 @@ async def _send_telegram_message(
     chat_id: int,
     text: str,
 ) -> None:
+    """Send a telegram message. If the message is longer than 4000 characters,
+    it splits it into multiple chunks and sends them sequentially.
+    """
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    response = await http.post(url, json={
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": True,
-    })
-    response.raise_for_status()
+    
+    # 1. Split text into chunks if it is longer than 4000 characters
+    max_chars = 4000
+    if len(text) <= max_chars:
+        chunks = [text]
+    else:
+        chunks = []
+        lines = text.splitlines(keepends=True)
+        current_chunk = []
+        current_len = 0
+        for line in lines:
+            if current_len + len(line) > max_chars:
+                if current_chunk:
+                    chunks.append("".join(current_chunk))
+                    current_chunk = [line]
+                    current_len = len(line)
+                else:
+                    # Single extremely long line fallback
+                    for i in range(0, len(line), max_chars):
+                        chunks.append(line[i:i+max_chars])
+            else:
+                current_chunk.append(line)
+                current_len += len(line)
+        if current_chunk:
+            chunks.append("".join(current_chunk))
+
+    # 2. Send each chunk sequentially
+    for idx, chunk in enumerate(chunks, 1):
+        if len(chunks) > 1:
+            logger.info(f"Sending message chunk {idx}/{len(chunks)} to chat {chat_id} (len={len(chunk)})")
+        try:
+            response = await http.post(url, json={
+                "chat_id": chat_id,
+                "text": chunk,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": True,
+            })
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                logger.warning(f"Telegram parse_mode=Markdown failed for chat {chat_id} (chunk {idx}), retrying without parse_mode. Error: {e}")
+                # Strip simple markdown syntax to prevent raw markup showing or breaking
+                clean_chunk = chunk.replace("*", "").replace("_", "").replace("`", "")
+                response = await http.post(url, json={
+                    "chat_id": chat_id,
+                    "text": clean_chunk,
+                    "disable_web_page_preview": True,
+                })
+                response.raise_for_status()
+            else:
+                raise
+        await asyncio.sleep(0.5)  # Slight delay to avoid Telegram rate limits
+
 
 
 # ── Scheduler build ────────────────────────────────────────────────────────────

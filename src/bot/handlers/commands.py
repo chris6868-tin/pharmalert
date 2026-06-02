@@ -147,6 +147,16 @@ async def test_notify(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await _run_test_notify()
 
 
+def escape_md(text: str | None) -> str:
+    """Escape Telegram Markdown V1 special characters in raw strings."""
+    if not text:
+        return "N/A"
+    res = str(text)
+    for c in ["\\", "*", "_", "`", "["]:
+        res = res.replace(c, f"\\{c}")
+    return res
+
+
 async def gmp_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gmp <query> — search for GMP factories by name or address."""
     chat_id = update.effective_chat.id
@@ -165,7 +175,7 @@ async def gmp_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     logger.info(f"/gmp search '{query_str}' from {chat_id}")
-    await update.message.reply_text(f"🔍 Đang tìm kiếm cơ sở GMP khớp với *'{query_str}'*...", parse_mode="Markdown")
+    await update.message.reply_text(f"🔍 Đang tìm kiếm cơ sở GMP khớp với *'{escape_md(query_str)}'*...", parse_mode="Markdown")
 
     async with get_session() as session:
         stmt = select(GmpFactory).where(
@@ -179,40 +189,46 @@ async def gmp_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         factories = list(result.scalars().all())
 
         if not factories:
-            await update.message.reply_text(f"❌ Không tìm thấy cơ sở nào khớp với từ khóa *'{query_str}'*.", parse_mode="Markdown")
+            await update.message.reply_text(f"❌ Không tìm thấy cơ sở nào khớp với từ khóa *'{escape_md(query_str)}'*.", parse_mode="Markdown")
             return
 
         msg_parts = [
-            f"🔍 *Kết quả tìm kiếm cho '{query_str}' ({len(factories)} kết quả đầu):*\n"
+            f"🔍 *Kết quả tìm kiếm cho '{escape_md(query_str)}' ({len(factories)} kết quả đầu):*\n"
         ]
         for idx, f in enumerate(factories, 1):
             if f.category == "gmp_manufacturing":
                 msg_parts.append(
-                    f"🏢 *{idx}. {f.factory_name}*\n"
-                    f"📍 *Địa chỉ:* {f.address}\n"
-                    f"🔬 *Tiêu chuẩn:* {f.standard or 'WHO-GMP'}\n"
-                    f"🏛️ *Cơ quan cấp:* {f.authority or 'N/A'}\n"
-                    f"📋 *Phạm vi:* {f.scope or 'N/A'}"
+                    f"🏢 *{idx}. {escape_md(f.factory_name)}*\n"
+                    f"📍 *Địa chỉ:* {escape_md(f.address)}\n"
+                    f"🔬 *Tiêu chuẩn:* {escape_md(f.standard or 'WHO-GMP')}\n"
+                    f"🏛️ *Cơ quan cấp:* {escape_md(f.authority or 'N/A')}\n"
+                    f"📋 *Phạm vi:* {escape_md(f.scope or 'N/A')}"
                 )
             elif f.category == "gmp_foreign":
                 msg_parts.append(
-                    f"🏢 *{idx}. {f.factory_name}* (Nước ngoài)\n"
-                    f"📍 *Địa chỉ:* {f.address}\n"
-                    f"🔬 *Tiêu chuẩn:* {f.standard or 'EU-GMP'}\n"
-                    f"🏛️ *Cơ quan đánh giá:* {f.authority or 'Cục Quản lý Dược'}\n"
-                    f"📋 *Phạm vi:* {f.scope or 'N/A'}"
+                    f"🏢 *{idx}. {escape_md(f.factory_name)}* (Nước ngoài)\n"
+                    f"📍 *Địa chỉ:* {escape_md(f.address)}\n"
+                    f"🔬 *Tiêu chuẩn:* {escape_md(f.standard or 'EU-GMP')}\n"
+                    f"🏛️ *Cơ quan đánh giá:* {escape_md(f.authority or 'Cục Quản lý Dược')}\n"
+                    f"📋 *Phạm vi:* {escape_md(f.scope or 'N/A')}"
                 )
             else:  # gmp_license
                 msg_parts.append(
-                    f"🏢 *{idx}. {f.factory_name}* (ĐKKD Dược)\n"
-                    f"📍 *Địa điểm:* {f.address}\n"
-                    f"👤 *Dược sĩ chuyên môn:* {f.responsible_pharmacist or 'N/A'}\n"
-                    f"📄 *Số GCN:* {f.certificate_license or 'N/A'}\n"
-                    f"📋 *Phạm vi:* {f.scope or 'N/A'}"
+                    f"🏢 *{idx}. {escape_md(f.factory_name)}* (ĐKKD Dược)\n"
+                    f"📍 *Địa điểm:* {escape_md(f.address)}\n"
+                    f"👤 *Dược sĩ chuyên môn:* {escape_md(f.responsible_pharmacist or 'N/A')}\n"
+                    f"📄 *Số GCN:* {escape_md(f.certificate_license or 'N/A')}\n"
+                    f"📋 *Phạm vi:* {escape_md(f.scope or 'N/A')}"
                 )
             msg_parts.append("──────────────────────")
 
-        await update.message.reply_text("\n".join(msg_parts), parse_mode="Markdown")
+        try:
+            await update.message.reply_text("\n".join(msg_parts), parse_mode="Markdown")
+        except Exception as e:
+            logger.warning(f"gmp_search Markdown reply failed, retrying plain text: {e}")
+            plain_text = "\n".join(msg_parts).replace("*", "").replace("_", "").replace("`", "")
+            await update.message.reply_text(plain_text)
+
 
 
 async def gmp_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

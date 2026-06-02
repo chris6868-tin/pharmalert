@@ -21,28 +21,67 @@ def _clean_str(val: any) -> str | None:
 
 
 def parse_gmp_sheet(file_bytes: bytes) -> list[dict]:
-    """Parse the WHO-GMP / EU-GMP manufacturing plants Excel sheet (cn92 list 1).
+    """Parse the WHO-GMP / EU-GMP manufacturing or packaging plants Excel sheet (cn92 list 1).
     
-    Header row: row 4. Data starts at row 7.
-    Indices:
-      - Col 0 (TT): Index number (must be numeric to filter out header/meta rows)
-      - Col 2 (Tên cơ sở)
-      - Col 4 (Địa chỉ cơ sở)
-      - Col 5 (Phạm vi chứng nhận)
-      - Col 7 (Tiêu chuẩn)
-      - Col 8 (Cơ quan cấp chứng nhận)
+    Dynamically maps columns based on the header row containing 'TÊN CƠ SỞ'.
     """
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
     sheet = wb.active
     
+    # 1. Tìm dòng tiêu đề chứa "TÊN CƠ SỞ"
+    header_row_idx = None
+    header_cells = None
+    for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
+        row_strs = [str(x).strip().upper() for x in row if x is not None]
+        if "TÊN CƠ SỞ" in row_strs:
+            header_row_idx = row_idx
+            header_cells = [str(x).strip() if x is not None else "" for x in row]
+            break
+            
+    if header_row_idx is None:
+        logger.warning("Could not find header row containing 'TÊN CƠ SỞ'. Using defaults.")
+        name_idx = 2
+        address_idx = 4
+        scope_idx = 5
+        standard_idx = 7
+        authority_idx = 8
+    else:
+        logger.info(f"Found header row at index {header_row_idx}")
+        name_idx = None
+        address_idx = None
+        scope_idx = None
+        standard_idx = None
+        authority_idx = None
+        
+        for idx, cell in enumerate(header_cells):
+            cell_upper = cell.upper()
+            if "TÊN CƠ SỞ" in cell_upper:
+                name_idx = idx
+            elif "ĐỊA CHỈ CƠ SỞ" in cell_upper:
+                address_idx = idx
+            elif "PHẠM VI" in cell_upper:
+                scope_idx = idx
+            elif "TIÊU CHUẨN" in cell_upper:
+                standard_idx = idx
+            elif "CƠ QUAN" in cell_upper:
+                authority_idx = idx
+                
+        # Fallback to defaults if any column is missing
+        if name_idx is None: name_idx = 2
+        if address_idx is None: address_idx = 4
+        if scope_idx is None: scope_idx = 5
+        if standard_idx is None: standard_idx = 7
+        if authority_idx is None: authority_idx = 8
+        
     parsed_rows = []
     row_count = 0
+    start_row = (header_row_idx if header_row_idx else 6) + 1
     
     for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
-        if row_idx < 6:  # Bỏ qua các dòng tiêu đề chung ban đầu
+        if row_idx < start_row:
             continue
             
-        if len(row) < 9:
+        if len(row) <= max(name_idx, address_idx, scope_idx, standard_idx, authority_idx):
             continue
             
         tt_val = _clean_str(row[0])
@@ -50,18 +89,24 @@ def parse_gmp_sheet(file_bytes: bytes) -> list[dict]:
         if not tt_val or not tt_val.isdigit():
             continue
             
-        factory_name = _clean_str(row[2])
-        address = _clean_str(row[4])
+        factory_name = _clean_str(row[name_idx])
+        address = _clean_str(row[address_idx])
         
         if not factory_name or not address:
             continue
             
+        standard_val = _clean_str(row[standard_idx])
+        # Safeguard: if standard value looks like a date/timestamp, filter it out
+        if standard_val and (re.search(r"\d{4}-\d{2}-\d{2}", standard_val) or "00:00:00" in standard_val):
+            logger.warning(f"Discarding date-like standard value: '{standard_val}' for factory '{factory_name}'")
+            standard_val = None
+
         parsed_rows.append({
             "factory_name": factory_name,
             "address": address,
-            "scope": _clean_str(row[5]),
-            "standard": _clean_str(row[7]),
-            "authority": _clean_str(row[8]),
+            "scope": _clean_str(row[scope_idx]),
+            "standard": standard_val,
+            "authority": _clean_str(row[authority_idx]),
             "headquarters_address": None,
             "location_name": None,
             "responsible_pharmacist": None,
