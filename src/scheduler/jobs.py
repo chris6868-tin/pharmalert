@@ -429,6 +429,11 @@ async def _notify_subscribers(
                     ann_created = ann.created_at.replace(tzinfo=None) if ann.created_at else None
                     if ann_created and ann_created < threshold:
                         continue
+                        
+                    # Skip announcements created before the subscriber joined to prevent sign-up spamming
+                    sub_joined = subscriber.created_at.replace(tzinfo=None) if subscriber.created_at else None
+                    if ann_created and sub_joined and ann_created < sub_joined:
+                        continue
                     
                     # Skip empty GMP announcements (no new certified factories inside this comparison)
                     if ann.source == "dav_gmp" and not ann.summary:
