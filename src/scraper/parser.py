@@ -31,6 +31,7 @@ class DetailEntry:
     title: str
     url: str           # PDF URL — not the listing/detail page URL
     published_date: str | None
+    detail_url: str | None = None
 
 
 class DAVListingParser:
@@ -232,6 +233,7 @@ class DAVListingParser:
                             title=entry.title,
                             url=pdf_url,
                             published_date=entry.published_date,
+                            detail_url=entry.url,
                         )
                     else:
                         logger.warning(

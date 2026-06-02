@@ -94,3 +94,27 @@ class Notification(Base):
             unique=True,
         ),
     )
+
+
+class GmpFactory(Base):
+    __tablename__ = "gmp_factories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category: Mapped[str] = mapped_column(String(30), index=True)  # "gmp_manufacturing" or "gmp_license"
+    factory_name: Mapped[str] = mapped_column(String(500), index=True)
+    address: Mapped[str] = mapped_column(String(1000))
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    standard: Mapped[str | None] = mapped_column(String(100), nullable=True)  # WHO-GMP, EU-GMP, etc.
+    authority: Mapped[str | None] = mapped_column(String(500), nullable=True)  # e.g., Cục Quản lý Dược
+    headquarters_address: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    location_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    responsible_pharmacist: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    certificate_license: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_gmp_factories_name_address", "factory_name", "address"),
+    )

@@ -1,5 +1,5 @@
 """Telegram bot command handlers."""
-from .commands import help_command, ping, start, test_notify
+from .commands import help_command, ping, start, test_notify, gmp_search, gmp_stats
 from .notifications import latest
 from .subscription import (
     sources,
@@ -20,4 +20,6 @@ __all__ = [
     "latest",
     "sources",
     "sources_callback",
+    "gmp_search",
+    "gmp_stats",
 ]

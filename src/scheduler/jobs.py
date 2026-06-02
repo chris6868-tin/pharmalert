@@ -21,6 +21,9 @@ from ..news import (
     FDAEnforcementFetcher, FDAShortageFetcher, PRACFetcher,
 )
 
+from bs4 import BeautifulSoup
+from ..scraper.gmp_parser import parse_gmp_sheet, parse_license_sheet, sync_gmp_data
+
 if TYPE_CHECKING:
     from ..core.config import _Settings
     from ..scraper import DAVFetcher
@@ -80,10 +83,100 @@ async def _scrape_dav(
                 else:
                     logger.info(f"DAV [{source_key}]: {result.new_entries} new, {result.skipped_entries} skipped, {result.failed_entries} failed")
                     for announcement in result.announcements:
-                        if source_key in ("dav_registration", "dav_gmp"):
-                            # For drug registrations and GMP certifications, we don't need summaries — only title and link.
+                        if source_key == "dav_registration":
+                            # For drug registrations, we don't need summaries — only title and link.
                             announcement.processed_at = datetime.utcnow()
                             all_processed.append(announcement)
+                            continue
+
+                        if source_key == "dav_gmp":
+                            # Process GMP announcement:
+                            # 1. Fetch details page HTML
+                            # 2. Extract Excel file links (.xlsx or .xls)
+                            # 3. Download files and parse them using parse_gmp_sheet or parse_license_sheet
+                            # 4. Sync GMP data with DB
+                            # 5. Populate announcement.summary with a list of newly certified/updated GMP factories.
+                            try:
+                                logger.info(f"Processing new GMP announcement: {announcement.url}")
+                                detail_html = await fetcher.fetch_html(announcement.url)
+                                soup = BeautifulSoup(detail_html, "html.parser")
+                                
+                                excel_urls = []
+                                for a in soup.find_all("a", href=True):
+                                    href = a["href"].strip()
+                                    text = a.get_text(strip=True)
+                                    if ".xlsx" in href.lower() or ".xls" in href.lower():
+                                        # Make absolute
+                                        abs_url = href
+                                        if not href.startswith("http"):
+                                            if href.startswith("/"):
+                                                abs_url = settings.dav_base_url.rstrip("/") + href
+                                            else:
+                                                abs_url = settings.dav_base_url.rstrip("/") + "/" + href
+                                        excel_urls.append((abs_url, text))
+                                
+                                logger.info(f"Found {len(excel_urls)} Excel links in GMP announcement detail page.")
+                                
+                                all_newly_added = []
+                                for xlsx_url, link_text in excel_urls:
+                                    try:
+                                        logger.info(f"Downloading Excel file: {xlsx_url}")
+                                        xlsx_bytes = await fetcher.fetch_bytes(xlsx_url)
+                                        
+                                        # Determine category
+                                        is_license = any(x in xlsx_url.lower() or x in link_text.lower() for x in [
+                                            "dkkd", "giay-chung-nhan", "giay_chung_nhan", "chung_nhan", 
+                                            "dieu_kien_kinh_doanh", "kinh_doanh", "kinh doanh", "đủ điều kiện"
+                                        ])
+                                        
+                                        if is_license:
+                                            category = "gmp_license"
+                                            rows = parse_license_sheet(xlsx_bytes)
+                                        else:
+                                            category = "gmp_manufacturing"
+                                            rows = parse_gmp_sheet(xlsx_bytes)
+                                            
+                                        logger.info(f"Parsed {len(rows)} rows for category {category} from Excel link.")
+                                        newly_added = await sync_gmp_data(session, category, rows)
+                                        logger.info(f"Synced category {category}. Newly added: {len(newly_added)}")
+                                        all_newly_added.extend([(category, x) for x in newly_added])
+                                    except Exception as e:
+                                        logger.error(f"Error parsing GMP Excel file {xlsx_url}: {e}", exc_info=True)
+                                
+                                # Format announcement summary with beautiful list of newly certified factories
+                                if all_newly_added:
+                                    summary_lines = [
+                                        "🔔 *THÔNG BÁO: CÓ CƠ SỞ MỚI ĐẠT CHUẨN GMP!*",
+                                        f"Phát hiện thêm *{len(all_newly_added)}* cơ sở vừa được cập nhật/cấp chứng nhận đạt chuẩn GMP từ DAV:\n"
+                                    ]
+                                    for idx, (cat, data) in enumerate(all_newly_added, 1):
+                                        if cat == "gmp_manufacturing":
+                                            summary_lines.append(
+                                                f"🏢 *{idx}. {data['factory_name']}*\n"
+                                                f"📍 *Địa chỉ:* {data['address']}\n"
+                                                f"🔬 *Tiêu chuẩn:* {data.get('standard') or 'WHO-GMP'}\n"
+                                                f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                            )
+                                        else:  # gmp_license
+                                            summary_lines.append(
+                                                f"🏢 *{idx}. {data['factory_name']}* (ĐKKD Dược)\n"
+                                                f"📍 *Địa điểm sản xuất:* {data['address']}\n"
+                                                f"👤 *Dược sĩ chuyên môn:* {data.get('responsible_pharmacist') or 'N/A'}\n"
+                                                f"📄 *Số GCN:* {data.get('certificate_license') or 'N/A'}\n"
+                                                f"📋 *Phạm vi:* {data.get('scope') or 'N/A'}"
+                                            )
+                                        summary_lines.append("──────────────────────")
+                                    announcement.summary = "\n".join(summary_lines)
+                                else:
+                                    announcement.summary = None  # No new updates
+                                    
+                                announcement.processed_at = datetime.utcnow()
+                                all_processed.append(announcement)
+                            except Exception as e:
+                                logger.error(f"Failed to process GMP announcement {announcement.external_id}: {e}", exc_info=True)
+                                # Fallback: standard processing without summary
+                                announcement.processed_at = datetime.utcnow()
+                                all_processed.append(announcement)
                             continue
 
                         if not announcement.url.lower().endswith(".pdf"):
@@ -278,6 +371,21 @@ async def _notify_subscribers(
                     # Safely handle both timezone-naive and timezone-aware datetimes
                     ann_created = ann.created_at.replace(tzinfo=None) if ann.created_at else None
                     if ann_created and ann_created < threshold:
+                        continue
+                    
+                    # Skip empty GMP announcements (no new certified factories inside this comparison)
+                    if ann.source == "dav_gmp" and not ann.summary:
+                        # Record as skipped in Notification table to avoid reprocessing
+                        try:
+                            notification = Notification(
+                                subscription_id=subscriber.id,
+                                announcement_id=ann.id,
+                                status="skipped_empty",
+                            )
+                            session.add(notification)
+                            await session.flush()
+                        except Exception:
+                            await session.rollback()
                         continue
                         
                     new_for_subscriber.append(ann)

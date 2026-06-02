@@ -139,3 +139,40 @@ class DAVFetcher:
             raise ScraperError(f"PDF HTTP {e.response.status_code}: {url}", cause=e) from e
         except httpx.RequestError as e:
             raise ScraperError(f"PDF request failed: {url}", cause=e) from e
+
+    async def fetch_bytes(self, url: str) -> bytes:
+        """
+        Fetch any file and return its bytes.
+        Raises PDFSizeError if the file exceeds max_pdf_size_bytes.
+        """
+        logger.debug(f"Fetching bytes: {url}")
+        client = await self._get_client()
+        max_size = self._settings.max_pdf_size_bytes
+
+        try:
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
+                chunks: list[bytes] = []
+                total_size = 0
+
+                async for chunk in response.aiter_bytes(chunk_size=65536):
+                    total_size += len(chunk)
+                    if total_size > max_size:
+                        raise PDFSizeError(
+                            f"File exceeds {self._settings.max_pdf_size_mb} MB limit "
+                            f"(total: {total_size / 1024 / 1024:.1f} MB)",
+                        )
+                    chunks.append(chunk)
+
+                result = b"".join(chunks)
+                logger.debug(
+                    f"Bytes fetched {url}: {len(result)} bytes",
+                )
+                return result
+
+        except PDFSizeError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise ScraperError(f"HTTP {e.response.status_code}: {url}", cause=e) from e
+        except httpx.RequestError as e:
+            raise ScraperError(f"Request failed: {url}", cause=e) from e

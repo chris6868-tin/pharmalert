@@ -105,7 +105,7 @@ class DAVScraperPipeline:
                     source=self._source_key,
                     external_id=entry.dav_id,
                     title=entry.title,
-                    url=entry.url,
+                    url=entry.detail_url if entry.detail_url else entry.url,
                     published_date=entry.published_date,
                 )
                 session.add(announcement)
