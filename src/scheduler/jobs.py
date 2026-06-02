@@ -71,6 +71,16 @@ async def _scrape_dav(
         logger.info("DAV scraping disabled — skipping scrape")
         return []
 
+    # Enforce active hours: 8:00 AM to 6:00 PM (18:00) local time (e.g. Asia/Ho_Chi_Minh)
+    tz = pytz.timezone(settings.timezone)
+    now_local = datetime.now(tz)
+    if now_local.hour < 8 or now_local.hour >= 18:
+        logger.info(
+            f"DAV scraper skipped: current time {now_local.strftime('%H:%M')} "
+            f"is outside active hours (08:00 - 18:00)."
+        )
+        return []
+
     from ..scraper import DAVScraperPipeline
 
     # Scrape four DAV sources — violations, drug registrations, and GMP (domestic & foreign)
