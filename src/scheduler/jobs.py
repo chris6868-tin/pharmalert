@@ -153,17 +153,11 @@ async def _scrape_dav(
                                             logger.error(f"Error parsing Foreign GMP PDF file {pdf_url}: {e}", exc_info=True)
                                             
                                     if all_newly_added:
-                                        summary_lines = [
-                                            "🔔 *THÔNG BÁO: CÓ CƠ SỞ NƯỚC NGOÀI MỚI ĐẠT CHUẨN GMP!*",
-                                            f"Phát hiện thêm *{len(all_newly_added)}* cơ sở sản xuất nước ngoài vừa được đánh giá đáp ứng tiêu chuẩn GMP:\n"
-                                        ]
-                                        for idx, (cat, data) in enumerate(all_newly_added, 1):
-                                            summary_lines.append(
-                                                f"🏢 *{idx}. {escape_md(data['factory_name'])}* ({escape_md(data.get('standard') or 'EU-GMP')})\n"
-                                                f"📍 *Địa chỉ:* {escape_md(data['address'])}"
-                                            )
-                                            summary_lines.append("──────────────────────")
-                                        announcement.summary = "\n".join(summary_lines)
+                                        announcement.summary = (
+                                            "🔔 *THÔNG BÁO: CẬP NHẬT GMP NƯỚC NGOÀI*\n\n"
+                                            "Cục Quản lý Dược vừa công bố kết quả đánh giá đáp ứng GMP của các cơ sở sản xuất nước ngoài. "
+                                            f"Hệ thống phát hiện thêm *{len(all_newly_added)}* cơ sở nước ngoài vừa được cấp mới hoặc cập nhật trạng thái đạt chuẩn GMP."
+                                        )
                                     else:
                                         announcement.summary = None
                                 else:
@@ -208,20 +202,59 @@ async def _scrape_dav(
                                             
                                     if all_newly_added:
                                         summary_lines = [
-                                            "🔔 *THÔNG BÁO: CÓ CƠ SỞ MỚI ĐẠT CHUẨN GMP!*",
-                                            f"Phát hiện thêm *{len(all_newly_added)}* cơ sở vừa được cập nhật/cấp chứng nhận đạt chuẩn GMP từ DAV:\n"
+                                            "🔔 *THÔNG BÁO: CÓ THAY ĐỔI GMP TRONG NƯỚC!*",
+                                            f"Phát hiện *{len(all_newly_added)}* cập nhật mới về cơ sở sản xuất đạt chuẩn GMP / ĐKKD dược:\n"
                                         ]
                                         for idx, (cat, data) in enumerate(all_newly_added, 1):
+                                            change_type = data.get("_change_type", "new")
                                             if cat == "gmp_manufacturing":
-                                                summary_lines.append(
-                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}* ({escape_md(data.get('standard') or 'WHO-GMP')})\n"
-                                                    f"📍 *Địa chỉ:* {escape_md(data['address'])}"
-                                                )
-                                            else:
-                                                summary_lines.append(
-                                                    f"🏢 *{idx}. {escape_md(data['factory_name'])}* (ĐKKD Dược)\n"
-                                                    f"📍 *Địa điểm:* {escape_md(data['address'])}"
-                                                )
+                                                if change_type == "new":
+                                                    summary_lines.append(
+                                                        f"🏢 *{idx}. [MỚI] {escape_md(data['factory_name'])}* ({escape_md(data.get('standard') or 'WHO-GMP')})\n"
+                                                        f"📍 *Địa chỉ:* {escape_md(data['address'])}"
+                                                    )
+                                                else:
+                                                    changes_desc = []
+                                                    changes = data.get("_changes", {})
+                                                    if "standard" in changes:
+                                                        old_std, new_std = changes["standard"]
+                                                        changes_desc.append(f"Tiêu chuẩn: {escape_md(old_std)} ➔ {escape_md(new_std)}")
+                                                    if "authority" in changes:
+                                                        old_auth, new_auth = changes["authority"]
+                                                        changes_desc.append(f"Cơ quan đánh giá: {escape_md(old_auth)} ➔ {escape_md(new_auth)}")
+                                                    if "scope" in changes:
+                                                        changes_desc.append("Cập nhật phạm vi hoạt động sản xuất")
+                                                    
+                                                    desc_str = ", ".join(changes_desc) if changes_desc else "Cập nhật thông tin chi tiết"
+                                                    summary_lines.append(
+                                                        f"🏢 *{idx}. [CẬP NHẬT] {escape_md(data['factory_name'])}*\n"
+                                                        f"📍 *Địa chỉ:* {escape_md(data['address'])}\n"
+                                                        f"🔄 *Nội dung:* {desc_str}"
+                                                    )
+                                            else: # gmp_license
+                                                if change_type == "new":
+                                                    summary_lines.append(
+                                                        f"🏢 *{idx}. [MỚI ĐKKD] {escape_md(data['factory_name'])}*\n"
+                                                        f"📍 *Địa điểm:* {escape_md(data['address'])}"
+                                                    )
+                                                else:
+                                                    changes_desc = []
+                                                    changes = data.get("_changes", {})
+                                                    if "certificate_license" in changes:
+                                                        old_lic, new_lic = changes["certificate_license"]
+                                                        changes_desc.append(f"Số GCN: {escape_md(old_lic)} ➔ {escape_md(new_lic)}")
+                                                    if "responsible_pharmacist" in changes:
+                                                        old_pharm, new_pharm = changes["responsible_pharmacist"]
+                                                        changes_desc.append(f"Dược sĩ: {escape_md(old_pharm)} ➔ {escape_md(new_pharm)}")
+                                                    if "scope" in changes:
+                                                        changes_desc.append("Cập nhật phạm vi hoạt động")
+                                                    
+                                                    desc_str = ", ".join(changes_desc) if changes_desc else "Cập nhật thông tin ĐKKD"
+                                                    summary_lines.append(
+                                                        f"🏢 *{idx}. [CẬP NHẬT ĐKKD] {escape_md(data['factory_name'])}*\n"
+                                                        f"📍 *Địa điểm:* {escape_md(data['address'])}\n"
+                                                        f"🔄 *Nội dung:* {desc_str}"
+                                                    )
                                             summary_lines.append("──────────────────────")
                                         announcement.summary = "\n".join(summary_lines)
                                     else:
@@ -467,16 +500,20 @@ async def _notify_subscribers(
                 for src in ["dav_violation", "dav_registration", "dav_gmp",
                              "fda_enforcement", "fda_shortage", "fda_approval",
                              "ema", "ema_shortage", "prac"]:
-                    for ann in by_source.get(src, []):
-                        message = _format_notification(ann)
-                        try:
-                            await _send_telegram_message(
-                                http, bot_token, subscriber.chat_id, message
-                            )
-                            await asyncio.sleep(0.5)  # Tránh Telegram rate limit (max ~30 msgs/sec)
-                            # Record that this subscriber received this announcement
+                    anns = by_source.get(src, [])
+                    if not anns:
+                        continue
+                        
+                    message = _format_grouped_notifications(src, anns)
+                    try:
+                        await _send_telegram_message(
+                            http, bot_token, subscriber.chat_id, message
+                        )
+                        await asyncio.sleep(0.5)  # Tránh Telegram rate limit (max ~30 msgs/sec)
+                        
+                        # Record that this subscriber received all these announcements in this group
+                        for ann in anns:
                             try:
-                                # We can query first to see if it exists to be safe and avoid transaction aborts
                                 from sqlalchemy.exc import IntegrityError
                                 existing_notif = await session.execute(
                                     select(Notification).where(
@@ -492,18 +529,14 @@ async def _notify_subscribers(
                                     )
                                     session.add(notification)
                                     # Since get_session() is an async context manager that commits at the end, 
-                                    # we can flush to detect database constraints without committing, 
-                                    # or just let it commit on clean exit.
+                                    # we can flush to detect database constraints without committing.
                                     await session.flush()
                             except IntegrityError:
                                 # If somehow it races or exists, just rollback the flush/savepoint and ignore
                                 await session.rollback()
                                 logger.warning(f"Notification already exists for sub {subscriber.id}, ann {ann.id}")
-                            # NOTE: do NOT commit here — get_session() context manager
-                            # commits on clean exit. Double-commit breaks SQLAlchemy's
-                            # greenlet context when called from an asyncio.Task.
-                        except Exception as e:
-                            logger.error(f"Notify failed {subscriber.chat_id}: {e}")
+                    except Exception as e:
+                        logger.error(f"Notify failed {subscriber.chat_id} for source {src}: {e}")
 
         finally:
             await http.aclose()
@@ -527,6 +560,38 @@ def _format_notification(ann: Announcement) -> str:
         
     parts.append(f"\n🔗 [Xem chi tiết]({ann.url})")
     
+    return "\n".join(parts)
+
+
+def _format_grouped_notifications(src: str, anns: list[Announcement]) -> str:
+    """Format multiple announcements of the same source into a single grouped message."""
+    if len(anns) == 1:
+        return _format_notification(anns[0])
+        
+    emoji, label = _SOURCE_META.get(src, ("📢", "Thông báo"))
+    parts = [
+        f"{emoji} *{label} ({len(anns)} tin mới)*\n"
+    ]
+    for idx, ann in enumerate(anns, 1):
+        date_str = f"📅 {ann.published_date}" if ann.published_date else ""
+        item_parts = [
+            f"{idx}️⃣ *{ann.title}*"
+        ]
+        if date_str:
+            item_parts.append(date_str)
+            
+        if ann.summary and ann.summary.strip():
+            summary_clean = ann.summary.strip()
+            # If summary is too long, truncate it to keep the grouped message readable
+            if len(summary_clean) > 300:
+                summary_clean = summary_clean[:300] + "..."
+            item_parts.append(summary_clean)
+            
+        item_parts.append(f"🔗 [Xem chi tiết]({ann.url})")
+        parts.append("\n".join(item_parts))
+        if idx < len(anns):
+            parts.append("──────────────────────")
+            
     return "\n".join(parts)
 
 

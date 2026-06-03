@@ -173,7 +173,7 @@ def parse_license_sheet(file_bytes: bytes) -> list[dict]:
 
 
 async def sync_gmp_data(session: AsyncSession, category: str, parsed_rows: list[dict]) -> list[dict]:
-    """Sync Excel rows with the DB and return newly added factories."""
+    """Sync Excel/PDF rows with the DB and return newly added or updated factories."""
     newly_added = []
     
     for data in parsed_rows:
@@ -201,20 +201,33 @@ async def sync_gmp_data(session: AsyncSession, category: str, parsed_rows: list[
                 certificate_license=data["certificate_license"]
             )
             session.add(factory)
-            newly_added.append(data)
+            
+            # Copy data and mark as new
+            item_data = dict(data)
+            item_data["_change_type"] = "new"
+            newly_added.append(item_data)
         else:
             # Cơ sở đã tồn tại -> Kiểm tra xem có bất kỳ trường thông tin nào thay đổi (vd cập nhật phạm vi, gia hạn)
             changed = False
+            changes = {}
             for field in [
                 "scope", "standard", "authority", "headquarters_address", 
                 "location_name", "responsible_pharmacist", "certificate_license"
             ]:
                 new_val = data.get(field)
-                if new_val is not None and getattr(existing, field) != new_val:
+                old_val = getattr(existing, field)
+                if new_val is not None and old_val != new_val:
+                    changes[field] = (old_val, new_val)
                     setattr(existing, field, new_val)
                     changed = True
             if changed:
                 session.add(existing)
+                
+                # Copy data and mark as updated with changes details
+                item_data = dict(data)
+                item_data["_change_type"] = "update"
+                item_data["_changes"] = changes
+                newly_added.append(item_data)
                 
     await session.flush()
     return newly_added
