@@ -98,6 +98,9 @@ class FDAEnforcementFetcher(NewsSourceBase):
 
 # ── FDA Drug Shortages ────────────────────────────────────────────────────────
 
+import re
+
+
 class FDAShortageFetcher(NewsSourceBase):
     """Fetch current FDA drug shortages via openFDA API."""
 
@@ -123,7 +126,7 @@ class FDAShortageFetcher(NewsSourceBase):
     async def fetch_new_items(self):
         client = await self._get_client()
         try:
-            url = f"{self.API_URL}?limit=30"
+            url = f"{self.API_URL}?sort=update_date:desc&limit=15"
             response = await client.get(url)
             response.raise_for_status()
             data = response.json()
@@ -169,9 +172,19 @@ class FDAShortageFetcher(NewsSourceBase):
 
             summary = "\n".join(parts) if parts else "Đang thiếu thuốc trên thị trường Mỹ."
 
-            external_id = f"fda-short-{generic_name[:30]}-{updated_date[:8]}".lower().replace(" ", "-")
-            if not generic_name:
-                external_id = f"fda-short-brand-{brand_name[:30]}"
+            # Construct stable external ID based on names and status, to ignore minor update_date changes
+            generic_clean = re.sub(r"[^a-zA-Z0-9-]", "", generic_name.strip().lower().replace(" ", "-"))[:50]
+            brand_clean = re.sub(r"[^a-zA-Z0-9-]", "", brand_name.strip().lower().replace(" ", "-"))[:50]
+            status_clean = re.sub(r"[^a-zA-Z0-9-]", "", status.strip().lower().replace(" ", "-"))[:30]
+
+            if generic_clean:
+                external_id = f"fda-short-{generic_clean}-{brand_clean}-{status_clean}"
+            else:
+                external_id = f"fda-short-brand-{brand_clean}-{status_clean}"
+
+            while "--" in external_id:
+                external_id = external_id.replace("--", "-")
+            external_id = external_id.strip("-")
 
             async for item in self._track_and_yield(NewsItem(
                 source=NewsSource.FDA_SHORTAGE,
